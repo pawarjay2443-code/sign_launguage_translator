@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # AI-Based Sign Language Translator 🤟
 
 A Final Year Diploma IT Project that detects hand gestures in real time using a webcam and converts sign language into text (and later, speech).
@@ -45,3 +46,7 @@ py main.py
 
 ## Author
 Om Chavan — Diploma IT, Final Year Project
+=======
+# sign-language-translator
+Diploma IT Final Year Project,AI-Based sign language translator for deaf and mute people
+>>>>>>> f5867b9371a58fb4cc45a558c9b95d9777488a76
