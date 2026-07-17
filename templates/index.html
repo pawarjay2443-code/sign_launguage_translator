@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!--
+    PROJECT  : AI-Based Sign Language Translator
+    FILE     : templates/index.html
+    PURPOSE  : Main browser UI — displays live camera feed,
+               detected letter, word builder, and control buttons.
+  -->
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- SEO -->
+  <title>AI Sign Language Translator | Real-Time ISL Detection</title>
+  <meta name="description"
+        content="Real-time AI-powered Indian Sign Language translator using webcam, MediaPipe, and OpenCV. Detects hand gestures and converts them to text and speech." />
+
+  <!-- Google Font: Inter (modern, clean) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap"
+        rel="stylesheet" />
+
+  <!-- Our CSS -->
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+
+<body>
+
+  <!-- ═══════════════════════════════════════════
+       HEADER
+  ═══════════════════════════════════════════ -->
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="logo">
+        <!-- Hand emoji as logo mark -->
+        <span class="logo-icon" aria-hidden="true">🤟</span>
+        <div class="logo-text">
+          <span class="logo-title">SignAI</span>
+          <span class="logo-sub">Indian Sign Language Translator</span>
+        </div>
+      </div>
+
+      <!-- Live status pill -->
+      <div class="status-pill" id="status-pill">
+        <span class="status-dot" id="status-dot"></span>
+        <span id="status-label">Camera Off</span>
+      </div>
+    </div>
+  </header>
+
+
+  <!-- ═══════════════════════════════════════════
+       MAIN CONTENT
+  ═══════════════════════════════════════════ -->
+  <main class="main-layout">
+
+    <!-- ─── LEFT COLUMN: Camera Feed ─────────────── -->
+    <section class="camera-panel" aria-label="Live camera feed">
+      <div class="panel-header">
+        <h2 class="panel-title">📷 Live Camera</h2>
+        <span class="fps-badge" id="fps-badge">-- FPS</span>
+      </div>
+
+      <!-- The img tag continuously loads frames from /video_feed.
+           Flask sends MJPEG (a stream of JPEG images) — the browser
+           treats this URL like a live video. -->
+      <div class="video-wrapper">
+        <img id="video-feed"
+             src="/video_feed"
+             alt="Live webcam feed showing hand gesture detection"
+             width="640"
+             height="480" />
+
+        <!-- Overlay hint shown when camera is off -->
+        <div class="video-overlay" id="video-overlay">
+          <div class="overlay-content">
+            <span class="overlay-icon">📷</span>
+            <p>Click <strong>Start Camera</strong> to begin</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Control Buttons ────────────────────── -->
+      <div class="button-row" role="group" aria-label="Camera controls">
+
+        <button id="btn-start"
+                class="btn btn-start"
+                onclick="startCamera()"
+                title="Start webcam and begin gesture detection">
+          <span class="btn-icon">▶</span>
+          Start Camera
+        </button>
+
+        <button id="btn-stop"
+                class="btn btn-stop"
+                onclick="stopCamera()"
+                disabled
+                title="Stop webcam">
+          <span class="btn-icon">⏹</span>
+          Stop Camera
+        </button>
+
+      </div>
+    </section>
+
+
+    <!-- ─── RIGHT COLUMN: Detection & Text ───────── -->
+    <aside class="info-panel" aria-label="Detection results">
+
+      <!-- ── Detected Letter Card ──────────────── -->
+      <div class="card letter-card">
+        <h2 class="card-title">Detected Letter</h2>
+        <div class="letter-display" id="letter-display" aria-live="polite">
+          <span id="letter-char">—</span>
+        </div>
+        <!-- Confirmation progress bar -->
+        <div class="progress-bar-wrapper" title="Hold gesture to confirm letter">
+          <div class="progress-bar-track">
+            <div class="progress-bar-fill" id="progress-bar"></div>
+          </div>
+          <span class="progress-label" id="progress-label">Hold gesture to confirm</span>
+        </div>
+      </div>
+
+
+      <!-- ── Word Builder Card ──────────────────── -->
+      <div class="card word-card">
+        <h2 class="card-title">Word Builder</h2>
+
+        <!-- Current word being typed -->
+        <div class="word-display" id="word-display" aria-live="polite">
+          <span id="current-word">_</span>
+        </div>
+
+        <!-- Word action buttons -->
+        <div class="button-row tight">
+          <button id="btn-backspace"
+                  class="btn btn-secondary"
+                  onclick="doBackspace()"
+                  title="Delete last character">
+            <span class="btn-icon">⌫</span>
+            Backspace
+          </button>
+          <button id="btn-space"
+                  class="btn btn-secondary"
+                  onclick="doSpace()"
+                  title="Finish this word and start a new one">
+            <span class="btn-icon">␣</span>
+            Space
+          </button>
+        </div>
+      </div>
+
+
+      <!-- ── Sentence Builder Card ─────────────── -->
+      <div class="card sentence-card">
+        <h2 class="card-title">Full Sentence</h2>
+
+        <!-- The full sentence (multiple words joined by spaces) -->
+        <div class="sentence-display" id="sentence-display" aria-live="polite">
+          <span id="sentence-text">Your sentence will appear here...</span>
+        </div>
+
+        <!-- Sentence action buttons -->
+        <div class="button-row tight">
+          <button id="btn-speak"
+                  class="btn btn-speak"
+                  onclick="speakText()"
+                  title="Speak the full sentence aloud">
+            <span class="btn-icon">🔊</span>
+            Speak
+          </button>
+          <button id="btn-clear"
+                  class="btn btn-clear"
+                  onclick="clearText()"
+                  title="Clear all text">
+            <span class="btn-icon">🗑</span>
+            Clear All
+          </button>
+        </div>
+      </div>
+
+
+      <!-- ── How to Use Card ────────────────────── -->
+      <div class="card help-card">
+        <h2 class="card-title">💡 How to Use</h2>
+        <ol class="help-list">
+          <li>Click <strong>Start Camera</strong> to activate webcam</li>
+          <li>Show a hand sign (A–Y) in front of your camera</li>
+          <li><strong>Hold</strong> the gesture until the progress bar fills</li>
+          <li>Letter is added automatically to the word</li>
+          <li>Click <strong>Space</strong> to finish a word</li>
+          <li>Click <strong>Speak</strong> to hear the sentence</li>
+        </ol>
+      </div>
+
+    </aside>
+
+  </main>
+
+
+  <!-- ═══════════════════════════════════════════
+       FOOTER
+  ═══════════════════════════════════════════ -->
+  <footer class="site-footer">
+    <p>Final Year Diploma IT Project &nbsp;·&nbsp; AI-Based Sign Language Translator
+       &nbsp;·&nbsp; Built with Python, MediaPipe &amp; Flask</p>
+  </footer>
+
+
+  <!-- Toast notification (shown briefly when a letter is confirmed) -->
+  <div class="toast" id="toast" aria-live="assertive"></div>
+
+
+  <!-- Our JavaScript -->
+  <script src="/static/js/app.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,690 @@
+/*
+  PROJECT  : AI-Based Sign Language Translator
+  FILE     : static/css/style.css
+  PURPOSE  : Modern dark glassmorphism UI with animations.
+
+  DESIGN SYSTEM:
+  - Background : Deep dark blue-purple gradient
+  - Cards      : Frosted glass (semi-transparent with blur)
+  - Accent     : Cyan / Electric blue (#00d4ff, #7c3aed)
+  - Font       : Inter (headings), JetBrains Mono (letter display)
+*/
+
+
+/* ═══════════════════════════════════════════════════
+   0. CSS CUSTOM PROPERTIES (Design Tokens)
+   ─ Define all colors and sizes in one place.
+   ─ Change a value here and it updates everywhere.
+═══════════════════════════════════════════════════ */
+:root {
+  /* Colors */
+  --bg-deep:         #0a0a1a;          /* Darkest background */
+  --bg-mid:          #0f0f2a;          /* Card background base */
+  --glass-bg:        rgba(255,255,255, 0.04);   /* Frosted glass fill */
+  --glass-border:    rgba(255,255,255, 0.10);   /* Glass card border */
+  --glass-hover:     rgba(255,255,255, 0.07);
+
+  --accent-cyan:     #00d4ff;          /* Primary accent — cyan glow */
+  --accent-purple:   #7c3aed;          /* Secondary accent — purple */
+  --accent-green:    #10b981;          /* Success / confirmed */
+  --accent-red:      #ef4444;          /* Stop / danger */
+  --accent-orange:   #f59e0b;          /* Warning / speak */
+
+  --text-primary:    #f0f4ff;          /* Main text */
+  --text-secondary:  #8892b0;          /* Dimmed text */
+  --text-accent:     #00d4ff;
+
+  /* Spacing */
+  --radius-sm:       8px;
+  --radius-md:       16px;
+  --radius-lg:       24px;
+  --radius-xl:       32px;
+
+  /* Shadows */
+  --shadow-card:  0 8px 32px rgba(0, 0, 0, 0.4);
+  --shadow-glow-cyan:   0 0 20px rgba(0, 212, 255, 0.3);
+  --shadow-glow-purple: 0 0 20px rgba(124, 58, 237, 0.3);
+
+  /* Transitions */
+  --transition-fast: 0.15s ease;
+  --transition-med:  0.3s ease;
+}
+
+
+/* ═══════════════════════════════════════════════════
+   1. RESET & BASE
+═══════════════════════════════════════════════════ */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  min-height: 100vh;
+  overflow-x: hidden;
+
+  /* Animated gradient background — slowly shifts colors */
+  background: linear-gradient(135deg, #0a0a1a 0%, #0d0d2b 40%, #0a1628 100%);
+}
+
+/* Moving star-like noise effect on the background */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image:
+    radial-gradient(ellipse at 20% 20%, rgba(124, 58, 237, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 80%, rgba(0, 212, 255, 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 60% 10%, rgba(16, 185, 129, 0.04) 0%, transparent 40%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Everything sits above the background effects */
+body > * {
+  position: relative;
+  z-index: 1;
+}
+
+
+/* ═══════════════════════════════════════════════════
+   2. GLASSMORPHISM CARD UTILITY
+   ─ Reusable class for any frosted-glass card.
+═══════════════════════════════════════════════════ */
+.card {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem 1.5rem;
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(12px);           /* The "frosted glass" blur effect */
+  -webkit-backdrop-filter: blur(12px);
+  transition: border-color var(--transition-med), box-shadow var(--transition-med);
+}
+
+.card:hover {
+  border-color: rgba(0, 212, 255, 0.2);
+  box-shadow: var(--shadow-card), var(--shadow-glow-cyan);
+}
+
+.card-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-secondary);
+  margin-bottom: 1rem;
+}
+
+
+/* ═══════════════════════════════════════════════════
+   3. HEADER
+═══════════════════════════════════════════════════ */
+.site-header {
+  border-bottom: 1px solid var(--glass-border);
+  padding: 0.875rem 2rem;
+  backdrop-filter: blur(20px);
+  background: rgba(10, 10, 26, 0.8);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header-inner {
+  max-width: 1400px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.logo-icon {
+  font-size: 2rem;
+  filter: drop-shadow(0 0 8px rgba(0, 212, 255, 0.5));
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-4px); }
+}
+
+.logo-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.logo-title {
+  font-size: 1.25rem;
+  font-weight: 800;
+  background: linear-gradient(90deg, var(--accent-cyan), var(--accent-purple));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1;
+}
+
+.logo-sub {
+  font-size: 0.65rem;
+  color: var(--text-secondary);
+  font-weight: 400;
+  margin-top: 2px;
+}
+
+/* Live status pill */
+.status-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  padding: 0.35rem 0.85rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  transition: all var(--transition-med);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #555;
+  transition: background var(--transition-med);
+}
+
+/* When camera is running, dot pulses green */
+.status-pill.active .status-dot {
+  background: var(--accent-green);
+  box-shadow: 0 0 8px var(--accent-green);
+  animation: pulse-dot 1.5s ease-in-out infinite;
+}
+
+.status-pill.active {
+  color: var(--accent-cyan);
+  border-color: rgba(0, 212, 255, 0.3);
+}
+
+@keyframes pulse-dot {
+  0%, 100% { transform: scale(1);   opacity: 1; }
+  50%       { transform: scale(1.4); opacity: 0.7; }
+}
+
+
+/* ═══════════════════════════════════════════════════
+   4. MAIN LAYOUT — Two-column grid
+═══════════════════════════════════════════════════ */
+.main-layout {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 2rem;
+  display: grid;
+  /* Left column: camera (fits video), Right column: info panels */
+  grid-template-columns: minmax(0, 680px) 1fr;
+  gap: 2rem;
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .main-layout {
+    grid-template-columns: 1fr;  /* Stack vertically on smaller screens */
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════
+   5. CAMERA PANEL (left column)
+═══════════════════════════════════════════════════ */
+.camera-panel {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-xl);
+  padding: 1.5rem;
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(12px);
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.panel-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-secondary);
+}
+
+.fps-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--accent-cyan);
+  background: rgba(0, 212, 255, 0.1);
+  border: 1px solid rgba(0, 212, 255, 0.2);
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+}
+
+/* Video container — keeps the 640×480 aspect ratio */
+.video-wrapper {
+  position: relative;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: #000;
+  border: 1px solid var(--glass-border);
+  /* Cyan glow around the camera feed */
+  box-shadow: 0 0 0 1px rgba(0, 212, 255, 0.1),
+              0 0 30px rgba(0, 212, 255, 0.05);
+  aspect-ratio: 4 / 3;
+}
+
+#video-feed {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  border-radius: var(--radius-md);
+}
+
+/* Overlay shown when camera is off */
+.video-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 10, 26, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  opacity: 0;                          /* Hidden by default */
+  pointer-events: none;
+  transition: opacity var(--transition-med);
+}
+
+.video-overlay.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.overlay-content {
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.overlay-icon {
+  font-size: 3rem;
+  display: block;
+  margin-bottom: 0.75rem;
+  opacity: 0.5;
+}
+
+
+/* ═══════════════════════════════════════════════════
+   6. BUTTONS
+═══════════════════════════════════════════════════ */
+.button-row {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.button-row.tight {
+  margin-top: 0.75rem;
+  gap: 0.5rem;
+}
+
+/* Base button */
+.btn {
+  flex: 1;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.65rem 1rem;
+  border: none;
+  border-radius: var(--radius-md);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Ripple shimmer on hover */
+.btn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.1), transparent);
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.btn:hover::after  { opacity: 1; }
+.btn:active        { transform: scale(0.97); }
+.btn:disabled      { opacity: 0.35; cursor: not-allowed; pointer-events: none; }
+
+.btn-icon {
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+/* ── Start: green gradient ── */
+.btn-start {
+  background: linear-gradient(135deg, #059669, #10b981);
+  color: #fff;
+  box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+}
+.btn-start:hover {
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.5);
+  transform: translateY(-1px);
+}
+
+/* ── Stop: red gradient ── */
+.btn-stop {
+  background: linear-gradient(135deg, #b91c1c, #ef4444);
+  color: #fff;
+  box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+}
+.btn-stop:hover {
+  box-shadow: 0 6px 20px rgba(239, 68, 68, 0.5);
+  transform: translateY(-1px);
+}
+
+/* ── Speak: orange/amber ── */
+.btn-speak {
+  background: linear-gradient(135deg, #b45309, #f59e0b);
+  color: #fff;
+  box-shadow: 0 4px 15px rgba(245, 158, 11, 0.3);
+}
+.btn-speak:hover {
+  box-shadow: 0 6px 20px rgba(245, 158, 11, 0.5);
+  transform: translateY(-1px);
+}
+
+/* ── Clear: purple ── */
+.btn-clear {
+  background: linear-gradient(135deg, #5b21b6, #7c3aed);
+  color: #fff;
+  box-shadow: 0 4px 15px rgba(124, 58, 237, 0.3);
+}
+.btn-clear:hover {
+  box-shadow: 0 6px 20px rgba(124, 58, 237, 0.5);
+  transform: translateY(-1px);
+}
+
+/* ── Secondary: glass style ── */
+.btn-secondary {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  color: var(--text-primary);
+}
+.btn-secondary:hover {
+  background: var(--glass-hover);
+  border-color: rgba(0, 212, 255, 0.3);
+  box-shadow: var(--shadow-glow-cyan);
+}
+
+
+/* ═══════════════════════════════════════════════════
+   7. RIGHT COLUMN — Info panel stack
+═══════════════════════════════════════════════════ */
+.info-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+
+/* ── Detected Letter Card ── */
+.letter-card {
+  text-align: center;
+}
+
+.letter-display {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 110px;
+  margin: 0.5rem 0;
+}
+
+/* The big letter character */
+#letter-char {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 5.5rem;
+  font-weight: 700;
+  line-height: 1;
+  background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  transition: transform var(--transition-fast);
+  display: inline-block;
+}
+
+/* Pop animation when a new letter is confirmed */
+.letter-pop {
+  animation: letter-pop 0.4s ease-out forwards;
+}
+
+@keyframes letter-pop {
+  0%   { transform: scale(0.7); opacity: 0.5; }
+  60%  { transform: scale(1.25); }
+  100% { transform: scale(1);   opacity: 1; }
+}
+
+/* Progress bar (gesture hold confirmation) */
+.progress-bar-wrapper {
+  margin-top: 0.5rem;
+}
+
+.progress-bar-track {
+  background: rgba(255,255,255, 0.06);
+  border-radius: 999px;
+  height: 6px;
+  overflow: hidden;
+  border: 1px solid var(--glass-border);
+}
+
+.progress-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--accent-cyan), var(--accent-purple));
+  border-radius: 999px;
+  transition: width 0.1s linear;
+  box-shadow: 0 0 8px rgba(0, 212, 255, 0.5);
+}
+
+.progress-label {
+  display: block;
+  font-size: 0.65rem;
+  color: var(--text-secondary);
+  margin-top: 0.35rem;
+}
+
+
+/* ── Word Card ── */
+.word-card { }
+
+.word-display {
+  background: rgba(0,0,0, 0.3);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 1rem;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.25rem;
+}
+
+#current-word {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 1.6rem;
+  font-weight: 600;
+  color: var(--accent-cyan);
+  letter-spacing: 0.1em;
+  /* Blinking cursor effect */
+  border-right: 2px solid var(--accent-cyan);
+  padding-right: 4px;
+  animation: blink-cursor 1s step-end infinite;
+}
+
+@keyframes blink-cursor {
+  0%, 100% { border-color: var(--accent-cyan); }
+  50%       { border-color: transparent; }
+}
+
+
+/* ── Sentence Card ── */
+.sentence-card { }
+
+.sentence-display {
+  background: rgba(0,0,0, 0.3);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 1rem;
+  min-height: 68px;
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  word-break: break-word;
+}
+
+#sentence-text {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  font-style: italic;
+}
+
+/* When the sentence has real content */
+#sentence-text.has-content {
+  color: var(--text-primary);
+  font-style: normal;
+  font-weight: 500;
+}
+
+
+/* ── Help Card ── */
+.help-card {
+  opacity: 0.9;
+}
+
+.help-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  counter-reset: help-counter;
+}
+
+.help-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  counter-increment: help-counter;
+  line-height: 1.4;
+}
+
+.help-list li::before {
+  content: counter(help-counter);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(0, 212, 255, 0.15);
+  border: 1px solid rgba(0, 212, 255, 0.3);
+  color: var(--accent-cyan);
+  font-size: 0.65rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.help-list strong {
+  color: var(--text-primary);
+}
+
+
+/* ═══════════════════════════════════════════════════
+   8. FOOTER
+═══════════════════════════════════════════════════ */
+.site-footer {
+  text-align: center;
+  padding: 1.5rem 2rem;
+  border-top: 1px solid var(--glass-border);
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  margin-top: 1rem;
+}
+
+
+/* ═══════════════════════════════════════════════════
+   9. TOAST NOTIFICATION
+   ─ Briefly shows the confirmed letter at bottom-right
+═══════════════════════════════════════════════════ */
+.toast {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  background: linear-gradient(135deg, var(--accent-purple), var(--accent-cyan));
+  color: #fff;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 1rem;
+  font-weight: 700;
+  padding: 0.6rem 1.2rem;
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4), var(--shadow-glow-cyan);
+  transform: translateY(80px);
+  opacity: 0;
+  transition: transform 0.3s cubic-bezier(.34,1.56,.64,1), opacity 0.3s ease;
+  pointer-events: none;
+  z-index: 200;
+}
+
+.toast.show {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+
+/* ═══════════════════════════════════════════════════
+   10. SCROLLBAR STYLING (WebKit browsers)
+═══════════════════════════════════════════════════ */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.1);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }

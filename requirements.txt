@@ -1,0 +1,19 @@
+# ============================================================
+# PROJECT  : AI-Based Sign Language Translator
+# FILE     : requirements.txt
+# PURPOSE  : All Python packages needed to run this project.
+#
+# Install all at once:
+#   pip install -r requirements.txt
+# ============================================================
+
+# Core AI / Computer Vision
+opencv-python>=4.8.0       # Webcam capture and frame processing
+mediapipe>=0.10.0          # Hand landmark detection AI model
+numpy>=1.24.0              # Numerical arrays (used by OpenCV)
+
+# Web Framework
+flask>=3.0.0               # Web server that serves the browser UI
+
+# Text-to-Speech (used only in desktop mode via main.py)
+pyttsx3>=2.90              # Offline TTS engine (not used by Flask web mode)
