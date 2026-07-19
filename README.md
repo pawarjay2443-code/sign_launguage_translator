@@ -1,51 +1,93 @@
-# AI-Based Sign Language Translator 🤟
+# 🤟 SignAI — AI-Based Real-Time Sign Language Translator
 
-A Final Year Diploma IT Project that detects hand gestures in real time using a webcam and converts sign language into text (and later, speech).
+**SignAI** is a professional, real-time sign language translation system built for final-year project evaluation. The application leverages Google's MediaPipe framework for skeletal hand landmarker tracking and Flask for backend streaming, translating static signs to text and speech directly in a modern web dashboard.
 
-## Tech Stack
-- Python 3.13
-- OpenCV (camera & image processing)
-- MediaPipe (hand landmark detection)
-- pyttsx3 (offline text-to-speech)
-- Rule-Based Gesture Recognition (A–Y static letters)
+---
 
-## Project Structure
+## 🚀 Key Features
+
+*   **Real-Time Joint Tracking:** Tracks 21 distinct hand landmarks dynamically using high-performance computer vision.
+*   **Intelligent Face Trigger Activation:** Auto-locks and unlocks translation by verifying if a user is actively facing the camera screen.
+*   **Rule-Based Algorithmic Translation:** Instantly converts coordinate geometry structures to Indian Sign Language (ISL) static letters.
+*   **Word & Sentence Builder:** Assembles recognized letters into full words and continuous sentences.
+*   **Universal Web Audio TTS:** Utilizes modern browser-based Web Speech APIs to read constructed sentences aloud.
+*   **Modern Glassmorphism Dashboard:** Vibrant, responsive, and intuitive dark mode web interface.
+
+---
+
+## 🛠️ Project Stack
+
+*   **Backend:** Python 3.11+, Flask
+*   **Computer Vision:** OpenCV (cv2), Google MediaPipe (v0.10+ Tasks API)
+*   **Frontend:** HTML5, CSS3 (Glassmorphism design system), Vanilla JavaScript (Web APIs)
+
+---
+
+## 📂 Project Architecture
+
 ```
-sign-language-translator/
-├── main.py                # Entry point — runs the app
-├── hand_detector.py       # Hand detection using MediaPipe Tasks API
-├── finger_counter.py      # Counts fingers UP/DOWN from landmarks
-├── gesture_recognizer.py  # Maps landmarks to ASL letters (A–Y)
-├── tts_engine.py          # Text-to-speech (pyttsx3, async)
-├── download_model.py      # Downloads the AI hand landmark model
-├── .gitignore
-└── README.md
+sign language translator/
+├── app.py                  # Main Flask Web Server & API Orchestrator
+├── hand_detector.py        # OpenCV Wrapper & MediaPipe Joint Tracker
+├── gesture_recognizer.py   # Rule-based ISL Gesture Recognizer
+├── finger_counter.py       # Helper utility for finger state analysis
+├── requirements.txt        # Python dependency manifest
+├── README.md               # Project documentation
+│
+├── model/                  # AI Model Files
+│   ├── hand_landmarker.task
+│   └── haarcascade_frontalface_default.xml
+│
+├── templates/              # Jinja2 HTML Templates
+│   ├── base.html           # Unified navigation & footer layout
+│   ├── landing.html        # Home & project overview page
+│   └── dashboard.html      # Main webcam translation view
+│
+└── static/                 # Static Assets
+    ├── css/
+    │   └── style.css       # Main design stylesheet
+    └── js/
+        └── app.js          # Client-side streaming & status controller
 ```
 
-## Setup Instructions
+---
 
-### 1. Install dependencies
+## ⚙️ Setup and Installation
+
+### 1. Install Dependencies
+Ensure you have Python 3.11+ installed. Run:
 ```bash
-py -m pip install opencv-python mediapipe numpy pyttsx3
+pip install -r requirements.txt
 ```
 
-### 2. Download the AI model (run once)
+### 2. Run the Application
+Start the Flask server:
 ```bash
-py download_model.py
+python app.py
 ```
 
-### 3. Run the app
-```bash
-py main.py
+### 3. Access the System
+Open your web browser and navigate to:
+```
+http://127.0.0.1:5000/
 ```
 
-## Features (Step by Step Progress)
-- [x] Step 1: Webcam setup
-- [x] Step 2: Real-time hand detection with 21 landmarks
-- [x] Step 3: Finger counting
-- [x] Step 4: Gesture recognition (A–Y, 24 static letters)
-- [x] Step 5: Text output & sentence builder
-- [x] Step 6: Text-to-speech (offline, async)
+---
 
-## Author
-Om Chavan — Diploma IT, Final Year Project
+## 💡 How to Use
+1.  Open the website home page and click **Launch Translator**.
+2.  Click the **Start Camera** button to start the live feed.
+3.  Stand/sit in front of the webcam. The system requires face detection to activate.
+4.  Perform any static gesture (A, B, C, D, E, F, I, K, L, O, S, U, V, W, Y) and **hold it** for 15 frames.
+5.  Watch the progress bar confirm the letter and append it to the **Word Builder**.
+6.  Perform actions like **Space** to build words, **Backspace** to edit, and **Speak** to read the full sentence.
+
+---
+
+## 👥 Development Team
+*   **Om Chavan** (Team Leader & Core Developer)
+*   **Jay** (Integration & Backend Engineer)
+*   **Ayush** (UI/UX & Frontend Designer)
+*   **Tejas** (QA & Documentation Lead)
+
+Agnel Polytechnic, Vashi — Diploma in Information Technology

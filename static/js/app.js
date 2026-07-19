@@ -31,6 +31,7 @@
 let pollInterval   = null;   // setInterval handle for status polling
 let lastLetter     = "";     // Tracks last confirmed letter to detect changes
 let lastWord       = "";     // Tracks last word to detect changes
+let failedPollsCount = 0;    // Tracks consecutive failed polls to detect offline server
 
 
 // ─────────────────────────────────────────────────────────────
@@ -86,9 +87,13 @@ async function pollStatus() {
   try {
     // Fetch JSON from the /status Flask route
     const response = await fetch("/status");
-    if (!response.ok) return;                // Network error — skip this tick
+    if (!response.ok) {
+      throw new Error(`HTTP error ${response.status}`);
+    }
 
     const data = await response.json();
+    failedPollsCount = 0; // Reset failure counter on successful connection
+
     /*
       data = {
         camera_running: bool,
@@ -114,8 +119,11 @@ async function pollStatus() {
     }
 
   } catch (err) {
-    // Flask not reachable — don't crash the page
+    failedPollsCount++;
     console.warn("[pollStatus] Could not reach server:", err.message);
+    if (failedPollsCount >= 3) {
+      showToast("⚠️ Server connection lost. Check Flask app.");
+    }
   }
 }
 
@@ -241,6 +249,8 @@ function showToast(message) {
  * The camera_loop thread starts in Flask.
  */
 async function startCamera() {
+  if (elBtnStart.disabled) return;
+  elBtnStart.disabled = true;
   try {
     const res = await fetch("/start", { method: "POST" });
     const data = await res.json();
@@ -252,6 +262,7 @@ async function startCamera() {
   } catch (err) {
     console.error("[startCamera] Error:", err);
     showToast("❌ Could not start camera");
+    elBtnStart.disabled = false;
   }
 }
 
@@ -259,6 +270,8 @@ async function startCamera() {
  * Stop the webcam — calls POST /stop.
  */
 async function stopCamera() {
+  if (elBtnStop.disabled) return;
+  elBtnStop.disabled = true;
   try {
     await fetch("/stop", { method: "POST" });
     showToast("⏹ Camera stopped");
@@ -269,6 +282,7 @@ async function stopCamera() {
     elFpsBadge.textContent = "-- FPS";
   } catch (err) {
     console.error("[stopCamera] Error:", err);
+    elBtnStop.disabled = false;
   }
 }
 

@@ -30,7 +30,6 @@ from flask import Flask, Response, jsonify, render_template, request
 
 # ── Import your existing AI modules (no changes needed to them) ──
 from hand_detector import HandDetector
-from finger_counter import FingerCounter
 from gesture_recognizer import GestureRecognizer
 
 
@@ -92,125 +91,133 @@ def camera_loop():
     and stores the latest JPEG frame in `state.latest_frame`
     so the /video_feed route can serve it.
     """
-
-    # ── Open the webcam ──────────────────────────────────────
-    cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
-    if not cap.isOpened():
-        cap = cv2.VideoCapture(1, cv2.CAP_DSHOW)  # Try second camera if first fails
-    if not cap.isOpened():
-        print("[ERROR] Could not open camera.")
-        with state.lock:
-            state.camera_running = False
-        return
-
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-    print("[OK] Camera opened for web app.")
-
-    # ── Load AI modules ──────────────────────────────────────
-    detector   = HandDetector(model_path="model/hand_landmarker.task", max_hands=2)
-    counter    = FingerCounter()
-    recognizer = GestureRecognizer()
-
-    prev_time = 0
-
-    # ── Main loop ────────────────────────────────────────────
-    while True:
-        # Check if we should stop (set by /stop route)
-        with state.lock:
-            should_run = state.camera_running
-        if not should_run:
-            break
-
-        # Read one frame from the webcam
-        ret, frame = cap.read()
-        if not ret:
-            break
-
-        # Mirror the frame (so it feels like a selfie camera)
-        frame = cv2.flip(frame, 1)
-
-        # ── Run hand detection ───────────────────────────────
-        frame, results = detector.find_hands(frame, draw=True)
-
-        detected_letter = None
-
-        if detector.is_hand_detected():
-            # Get data from the first detected hand
-            first_landmarks = detector.get_landmark_positions(frame, hand_index=0)
-            first_label     = results.handedness[0][0].display_name  # "Left" or "Right"
-
-            # Count which fingers are up
-            _, first_fingers = counter.count_fingers(first_landmarks, first_label)
-
-            # Recognize the letter being shown
-            detected_letter = recognizer.recognize(first_landmarks, first_fingers, first_label)
-
-            # ── Gesture confirmation logic ───────────────────
-            # A letter must be held for CONFIRMATION_FRAMES frames
-            # before it is added to the word. This prevents accidental
-            # letters from being added during transitions.
+    cap = None
+    detector = None
+    try:
+        # ── Open the webcam ──────────────────────────────────────
+        cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+        if not cap.isOpened():
+            cap = cv2.VideoCapture(1, cv2.CAP_DSHOW)  # Try second camera if first fails
+        if not cap.isOpened():
+            print("[ERROR] Could not open camera.")
             with state.lock:
-                if detected_letter:
-                    if detected_letter == state.current_gesture:
-                        state.gesture_frames += 1
-                    else:
-                        state.current_gesture = detected_letter
-                        state.gesture_frames = 1
+                state.camera_running = False
+            return
 
-                    # Once held long enough, add to word
-                    if state.gesture_frames == state.CONFIRMATION_FRAMES:
-                        state.current_word    += detected_letter
-                        state.last_added_letter = detected_letter
-                        state.gesture_frames  = 0  # Reset so same letter can be typed again
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        print("[OK] Camera opened for web app.")
+
+        # ── Load AI modules ──────────────────────────────────────
+        detector   = HandDetector(model_path="model/hand_landmarker.task", max_hands=2)
+        recognizer = GestureRecognizer()
+
+        prev_time = 0
+
+        # ── Main loop ────────────────────────────────────────────
+        while True:
+            # Check if we should stop (set by /stop route)
+            with state.lock:
+                should_run = state.camera_running
+            if not should_run:
+                break
+
+            # Read one frame from the webcam
+            ret, frame = cap.read()
+            if not ret:
+                break
+
+            # Mirror the frame (so it feels like a selfie camera)
+            frame = cv2.flip(frame, 1)
+
+            # ── Run hand detection ───────────────────────────────
+            frame, results = detector.find_hands(frame, draw=True)
+
+            detected_letter = None
+            landmarks_flat = detector.get_normalized_landmarks()
+
+            # Enforce Face Detection Activation Trigger (from the GitHub project model)
+            if detector.is_face_detected():
+                if detector.is_hand_detected():
+                    # Recognize the gesture using the sequence recognizer
+                    detected_letter = recognizer.recognize(landmarks_flat)
+
+                    # ── Gesture confirmation logic ───────────────────
+                    with state.lock:
+                        if detected_letter:
+                            if detected_letter == state.current_gesture:
+                                state.gesture_frames += 1
+                            else:
+                                state.current_gesture = detected_letter
+                                state.gesture_frames = 1
+
+                            # Once held long enough, add to word
+                            if state.gesture_frames == state.CONFIRMATION_FRAMES:
+                                state.current_word    += detected_letter
+                                state.last_added_letter = detected_letter
+                                state.gesture_frames  = 0  # Reset so same letter can be typed again
+                        else:
+                            state.current_gesture = None
+                            state.gesture_frames  = 0
+
+                    # ── Overlay: Detected letter and current word ────
+                    display_char = detected_letter if detected_letter else "?"
+                    cv2.putText(frame, f"LETTER: {display_char}", (10, 50),
+                                cv2.FONT_HERSHEY_SIMPLEX, 1.4, (0, 200, 255), 3)
+
+                    with state.lock:
+                        word_display = state.current_word
+                    cv2.putText(frame, f"Word: {word_display}", (10, 100),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 200), 2)
+
+                    # ── Progress bar: gesture confirmation progress ──
+                    with state.lock:
+                        progress = state.gesture_frames
+                    bar_width = int((progress / state.CONFIRMATION_FRAMES) * 200)
+                    cv2.rectangle(frame, (10, 115), (10 + bar_width, 125), (0, 255, 100), cv2.FILLED)
+                    cv2.rectangle(frame, (10, 115), (210, 125), (100, 100, 100), 1)
+
                 else:
-                    state.current_gesture = None
-                    state.gesture_frames  = 0
+                    # No hand visible, reset the recognizer's sequence queue
+                    recognizer.reset_sequence()
+                    cv2.putText(frame, "Show your hand...", (10, 50),
+                                cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 100, 255), 2)
+            else:
+                # Face not detected — system inactive
+                recognizer.reset_sequence()
+                cv2.putText(frame, "System Inactive", (10, 50),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 255), 3)
+                cv2.putText(frame, "Stand in front of camera", (10, 90),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 
-            # ── Overlay: Detected letter and current word ────
-            display_char = detected_letter if detected_letter else "?"
-            cv2.putText(frame, f"LETTER: {display_char}", (10, 50),
-                        cv2.FONT_HERSHEY_SIMPLEX, 1.4, (0, 200, 255), 3)
+            # ── FPS counter ──────────────────────────────────────
+            curr_time = time.time()
+            fps = int(1 / (curr_time - prev_time)) if (curr_time - prev_time) > 0 else 0
+            prev_time = curr_time
+            cv2.putText(frame, f"FPS: {fps}", (560, 30),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
 
             with state.lock:
-                word_display = state.current_word
-            cv2.putText(frame, f"Word: {word_display}", (10, 100),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 200), 2)
+                state.fps = fps
 
-            # ── Progress bar: gesture confirmation progress ──
-            with state.lock:
-                progress = state.gesture_frames
-            bar_width = int((progress / state.CONFIRMATION_FRAMES) * 200)
-            cv2.rectangle(frame, (10, 115), (10 + bar_width, 125), (0, 255, 100), cv2.FILLED)
-            cv2.rectangle(frame, (10, 115), (210, 125), (100, 100, 100), 1)
+            # ── Encode frame as JPEG for browser streaming ───────
+            success, buffer = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+            if success:
+                with state.lock:
+                    state.latest_frame = buffer.tobytes()  # Store for /video_feed
 
-        else:
-            # No hand visible
-            cv2.putText(frame, "Show your hand...", (10, 50),
-                        cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 100, 255), 2)
-
-        # ── FPS counter ──────────────────────────────────────
-        curr_time = time.time()
-        fps = int(1 / (curr_time - prev_time)) if (curr_time - prev_time) > 0 else 0
-        prev_time = curr_time
-        cv2.putText(frame, f"FPS: {fps}", (560, 30),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
-
-        with state.lock:
-            state.fps = fps
-
-        # ── Encode frame as JPEG for browser streaming ───────
-        # imencode() converts the OpenCV frame (numpy array) into
-        # a compressed JPEG byte string that browsers can display.
-        success, buffer = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
-        if success:
-            with state.lock:
-                state.latest_frame = buffer.tobytes()  # Store for /video_feed
-
-    # ── Cleanup after loop ends ──────────────────────────────
-    detector.close()
-    cap.release()
-    print("[DONE] Camera loop ended.")
+    except Exception as e:
+        print(f"[ERROR] Exception in camera thread: {e}")
+    finally:
+        # ── Cleanup after loop ends ──────────────────────────────
+        if detector:
+            try:
+                detector.close()
+            except:
+                pass
+        if cap and cap.isOpened():
+            cap.release()
+        print("[DONE] Camera loop ended and resources released.")
 
 
 # ============================================================
@@ -262,10 +269,17 @@ def generate_frames():
 @app.route("/")
 def index():
     """
-    Serve the main HTML page.
-    Flask looks for templates in the /templates folder automatically.
+    Serve the Landing Page.
     """
-    return render_template("index.html")
+    return render_template("landing.html")
+
+
+@app.route("/dashboard")
+def dashboard():
+    """
+    Serve the main Sign Language Translation dashboard.
+    """
+    return render_template("dashboard.html")
 
 
 @app.route("/video_feed")
@@ -401,7 +415,7 @@ def backspace():
     return jsonify({"status": "backspace"})
 
 
-@app.route("/speak", methods=["POST"])
+@app.route("/speak", methods=["GET", "POST"])
 def speak():
     """
     Returns the full text to be spoken.
@@ -420,6 +434,28 @@ def speak():
 
     print(f"[SPEAK] Sending to browser TTS: '{full_text}'")
     return jsonify({"status": "ok", "text": full_text})
+
+
+@app.route("/health")
+def health():
+    """
+    Quick status/health check endpoint for verification.
+    """
+    return jsonify({
+        "status": "healthy",
+        "camera_running": state.camera_running,
+        "fps": state.fps
+    })
+
+
+@app.errorhandler(404)
+def not_found_error(error):
+    return render_template("landing.html"), 404
+
+
+@app.errorhandler(500)
+def internal_error(error):
+    return render_template("landing.html"), 500
 
 
 # ============================================================

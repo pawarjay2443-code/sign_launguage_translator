@@ -4,6 +4,7 @@
 # PURPOSE  : Detect hands + draw 21 landmarks using MediaPipe 0.10+
 # ============================================================
 
+import os
 import cv2                        # OpenCV for drawing on frames
 import mediapipe as mp            # MediaPipe AI library
 from mediapipe.tasks import python as mp_python
@@ -86,6 +87,27 @@ class HandDetector:
         # Timestamp counter: MediaPipe VIDEO mode needs increasing timestamps
         self.timestamp_ms = 0
 
+        # Load OpenCV Haar Cascade Face Detector for activation trigger
+        # Use absolute path based on this file's location to avoid working-directory issues
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        cascade_path = os.path.join(base_dir, "model", "haarcascade_frontalface_default.xml")
+
+        self.face_cascade = cv2.CascadeClassifier(cascade_path)
+
+        # If the local XML failed to load, try OpenCV's built-in data directory
+        if self.face_cascade.empty():
+            print(f"[WARNING] Local cascade failed to load from: {cascade_path}")
+            builtin_path = os.path.join(cv2.data.haarcascades, "haarcascade_frontalface_default.xml")
+            print(f"[INFO] Trying OpenCV built-in: {builtin_path}")
+            self.face_cascade = cv2.CascadeClassifier(builtin_path)
+
+        if self.face_cascade.empty():
+            print("[ERROR] Could not load face cascade from ANY path! Face detection disabled.")
+        else:
+            print("[OK] Face cascade loaded successfully.")
+
+        self.face_results = []
+
         print("[OK] Hand detector loaded successfully.")
 
     def find_hands(self, frame, draw=True):
@@ -101,6 +123,14 @@ class HandDetector:
         - results : Raw MediaPipe detection results
         """
 
+        # Run OpenCV Haar Cascade Face Detection
+        try:
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            self.face_results = self.face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(40, 40))
+        except Exception as e:
+            print(f"[WARNING] Face detection failed: {e}")
+            self.face_results = []
+
         # Step 1: Convert frame from BGR (OpenCV) → RGB (MediaPipe needs RGB)
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
@@ -113,12 +143,25 @@ class HandDetector:
         # Step 4: Run the AI hand detection on this frame
         self.results = self.detector.detect_for_video(mp_image, self.timestamp_ms)
 
-        # Step 5: If hands found and draw=True, draw landmarks on the frame
-        if draw and self.results.hand_landmarks:
-            for hand_landmarks in self.results.hand_landmarks:
-                self._draw_landmarks(frame, hand_landmarks)
+        # Step 5: Draw face boxes and hand landmarks if draw=True
+        if draw:
+            # Draw Face boxes
+            if len(self.face_results) > 0:
+                for (x, y, w, h) in self.face_results:
+                    cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 0), 2)  # Blue box for face
+                    cv2.putText(frame, "Face (Active)", (x, y - 8),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
+
+            # Draw Hand landmarks
+            if self.results.hand_landmarks:
+                for hand_landmarks in self.results.hand_landmarks:
+                    self._draw_landmarks(frame, hand_landmarks)
 
         return frame, self.results
+
+    def is_face_detected(self):
+        """Returns True if a face is currently detected in the frame, else False."""
+        return len(self.face_results) > 0
 
     def _draw_landmarks(self, frame, hand_landmarks):
         """
@@ -186,6 +229,33 @@ class HandDetector:
                     landmark_list.append([i, x, y])
 
         return landmark_list
+
+    def get_normalized_landmarks(self):
+        """
+        Extract normalized coordinates (x, y, z) for Left and Right hands.
+        Returns a flat float list of 126 elements:
+        - 0 to 62: Left hand landmarks
+        - 63 to 125: Right hand landmarks
+        If a hand is not detected, it is filled with zeros.
+        """
+        left_hand = [0.0] * 63
+        right_hand = [0.0] * 63
+
+        if self.results and self.results.hand_landmarks:
+            for i, hand_landmarks in enumerate(self.results.hand_landmarks):
+                # Retrieve label ("Left" or "Right")
+                hand_label = self.results.handedness[i][0].display_name
+                
+                flat_coords = []
+                for lm in hand_landmarks:
+                    flat_coords.extend([lm.x, lm.y, lm.z])
+                
+                if hand_label == "Left":
+                    left_hand = flat_coords
+                else:
+                    right_hand = flat_coords
+
+        return left_hand + right_hand
 
     def close(self):
         """Release the detector when done (good practice to free memory)."""

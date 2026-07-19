@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}SignAI | Indian Sign Language Translator{% endblock %}</title>
+  <meta name="description" content="Real-time AI-powered Indian Sign Language translator using webcam, MediaPipe, and Flask." />
+  
+  <!-- Google Font: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  
+  <!-- Main Stylesheet -->
+  <link rel="stylesheet" href="/static/css/style.css" />
+  {% block extra_css %}{% endblock %}
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="site-header">
+    <div class="header-inner">
+      <a href="/" class="logo" style="text-decoration: none; color: inherit;">
+        <span class="logo-icon" aria-hidden="true">🤟</span>
+        <div class="logo-text">
+          <span class="logo-title">SignAI</span>
+          <span class="logo-sub">Indian Sign Language Translator</span>
+        </div>
+      </a>
+      
+      <nav class="nav-links">
+        <a href="/" class="nav-item">Home</a>
+        <a href="/dashboard" class="nav-item nav-btn">Translator App</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- MAIN CONTENT -->
+  {% block content %}{% endblock %}
+
+  <!-- FOOTER -->
+  <footer class="site-footer">
+    <p>Final Year Diploma IT Project &nbsp;·&nbsp; AI-Based Sign Language Translator &nbsp;·&nbsp; Built with Python, MediaPipe &amp; Flask</p>
+  </footer>
+
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

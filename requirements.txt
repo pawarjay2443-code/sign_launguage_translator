@@ -17,3 +17,8 @@ flask>=3.0.0               # Web server that serves the browser UI
 
 # Text-to-Speech (used only in desktop mode via main.py)
 pyttsx3>=2.90              # Offline TTS engine (not used by Flask web mode)
+
+# Machine Learning for Indian Sign Language (ISL)
+scikit-learn>=1.2.0        # For training the classifier model
+joblib>=1.2.0              # For saving and loading models
+

@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block title %}SignAI | Real-Time AI Sign Language Translator{% endblock %}
+
+{% block content %}
+<main class="landing-container">
+  
+  <!-- HERO SECTION -->
+  <section class="hero-section">
+    <h1 class="hero-title">Breaking Barriers with <br><span class="highlight">Real-Time Sign Translation</span></h1>
+    <p class="hero-subtitle">
+      A professional final-year project designed to assist communication between deaf/mute people and the general public using modern AI vision tech.
+    </p>
+    <div class="hero-cta">
+      <a href="/dashboard" class="btn btn-start landing-cta-btn">
+        <span class="btn-icon">▶</span> Launch Translator
+      </a>
+    </div>
+  </section>
+
+  <!-- FEATURES SECTION -->
+  <section class="features-grid">
+    <div class="card feature-card">
+      <div class="feature-icon">📷</div>
+      <h3>Real-Time Tracking</h3>
+      <p>Tracks 21 hand joints dynamically using MediaPipe's high-performance pipelines directly in the browser.</p>
+    </div>
+    
+    <div class="card feature-card">
+      <div class="feature-icon">🧠</div>
+      <h3>Smart Recognition</h3>
+      <p>Rule-based algorithmic recognition maps hand shapes instantly to Indian Sign Language letters.</p>
+    </div>
+    
+    <div class="card feature-card">
+      <div class="feature-icon">🔊</div>
+      <h3>Text-to-Speech</h3>
+      <p>Listen to full formulated sentences in high-fidelity synthesized speech using Web Speech APIs.</p>
+    </div>
+
+    <div class="card feature-card">
+      <div class="feature-icon">👤</div>
+      <h3>Face Activation</h3>
+      <p>Intelligent activation locks/unlocks the translation engine automatically by detecting when a user faces the screen.</p>
+    </div>
+  </section>
+
+  <!-- SYSTEM OVERVIEW SECTION -->
+  <section class="overview-section card">
+    <h2 class="section-title">System Architecture</h2>
+    <p>
+      This final year project implements a modular stack utilizing OpenCV for webcam capture, MediaPipe Hand Landmarker for real-time skeletal coordinate mapping, standard Flask for pipeline orchestration and endpoint serving, and Web APIs for offline Text-to-Speech conversion.
+    </p>
+  </section>
+
+  <!-- TEAM SECTION -->
+  <section class="team-section">
+    <h2 class="section-title text-center">Project Development Team</h2>
+    <div class="team-grid">
+      <div class="card team-card">
+        <h4>Om Chavan</h4>
+        <p class="role">Team Leader & Core Developer</p>
+      </div>
+      <div class="card team-card">
+        <h4>Jay</h4>
+        <p class="role">Integration & Backend Engineer</p>
+      </div>
+      <div class="card team-card">
+        <h4>Ayush</h4>
+        <p class="role">UI/UX & Frontend Designer</p>
+      </div>
+      <div class="card team-card">
+        <h4>Tejas</h4>
+        <p class="role">QA & Documentation Lead</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+{% endblock %}
