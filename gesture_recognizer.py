@@ -26,6 +26,9 @@ import os
 import math
 import numpy as np
 
+# Import FingerCounter for rule-based numeric gestures
+from finger_counter import FingerCounter
+
 # Try importing joblib (only needed if ML model is used)
 try:
     import joblib
@@ -50,6 +53,9 @@ class GestureRecognizer:
         self.model = None
         self.label_map = None
         self.inverse_label_map = None
+
+        # Instantiate FingerCounter for numeric fallback / gestures
+        self.finger_counter = FingerCounter()
 
         # Sliding window buffer for ML-based recognition
         self.sequence_queue = []
@@ -121,6 +127,18 @@ class GestureRecognizer:
 
         left_active = any(v != 0.0 for v in left_hand)
         right_active = any(v != 0.0 for v in right_hand)
+
+        # ── Two-Handed Numeric Gesture Recognition (6-9, and 0) ──
+        if left_active and right_active:
+            left_landmarks = [[i, left_hand[i * 3], left_hand[i * 3 + 1]] for i in range(21)]
+            right_landmarks = [[i, right_hand[i * 3], right_hand[i * 3 + 1]] for i in range(21)]
+            left_count, _ = self.finger_counter.count_fingers(left_landmarks, "Left")
+            right_count, _ = self.finger_counter.count_fingers(right_landmarks, "Right")
+            total_fingers = left_count + right_count
+            if 6 <= total_fingers <= 9:
+                return str(total_fingers)
+            elif total_fingers == 0:
+                return "0"
 
         if right_active:
             hand = right_hand
@@ -204,19 +222,10 @@ class GestureRecognizer:
         # ── 3 fingers up ──
         elif fingers_up == 3:
             if index and middle and ring and not pinky:
-                if thumb:
-                    # Thumb + 3 fingers = could be various
-                    return "W"  # Close enough
-                else:
-                    return "W"  # 🤟 Three fingers (index + middle + ring)
+                return "W"  # 🤟 Three fingers (index + middle + ring)
 
             elif middle and ring and pinky and not index:
-                # Index is down, other 3 up — likely F
-                # F: index tip touches thumb, other 3 fingers up
-                if thumb_index_dist < 0.3:
-                    return "F"
-                else:
-                    return "F"  # Still most likely F in this config
+                return "F"  # Middle + ring + pinky (index tip touches thumb)
 
         # ── 4 fingers up ──
         elif fingers_up == 4:
@@ -240,6 +249,13 @@ class GestureRecognizer:
         # O can register as various finger counts depending on detection
         if all_tips_near_thumb and fingers_up <= 1:
             return "O"          # 👌 Circle shape — all tips touch thumb
+
+        # ── Fallback: One-Handed Numeric Gestures (1-5) ──
+        active_landmarks = [[i, hand[i * 3], hand[i * 3 + 1]] for i in range(21)]
+        hand_label = "Right" if is_right else "Left"
+        count, _ = self.finger_counter.count_fingers(active_landmarks, hand_label)
+        if 1 <= count <= 5:
+            return str(count)
 
         return None  # Unknown gesture
 

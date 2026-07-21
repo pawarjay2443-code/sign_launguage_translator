@@ -75,6 +75,10 @@ class AppState:
         # Performance
         self.fps = 0
 
+        # Error and Cooldown tracking
+        self.last_error = None              # Last camera or model error message
+        self.cooldown_frames = 0            # Cooldown count for current gesture
+
 
 # Create one global state object
 state = AppState()
@@ -95,13 +99,21 @@ def camera_loop():
     detector = None
     try:
         # ── Open the webcam ──────────────────────────────────────
-        cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
-        if not cap.isOpened():
-            cap = cv2.VideoCapture(1, cv2.CAP_DSHOW)  # Try second camera if first fails
+        import platform
+        if platform.system() == "Windows":
+            cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+            if not cap.isOpened():
+                cap = cv2.VideoCapture(1, cv2.CAP_DSHOW)  # Try second camera if first fails
+        else:
+            cap = cv2.VideoCapture(0)
+            if not cap.isOpened():
+                cap = cv2.VideoCapture(1)  # Try second camera if first fails
+
         if not cap.isOpened():
             print("[ERROR] Could not open camera.")
             with state.lock:
                 state.camera_running = False
+                state.last_error = "Could not open camera. Please make sure your camera is connected and not in use by another app."
             return
 
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
@@ -109,8 +121,15 @@ def camera_loop():
         print("[OK] Camera opened for web app.")
 
         # ── Load AI modules ──────────────────────────────────────
-        detector   = HandDetector(model_path="model/hand_landmarker.task", max_hands=2)
-        recognizer = GestureRecognizer()
+        try:
+            detector   = HandDetector(model_path="model/hand_landmarker.task", max_hands=2)
+            recognizer = GestureRecognizer()
+        except Exception as e:
+            print(f"[ERROR] Failed to load AI models: {e}")
+            with state.lock:
+                state.camera_running = False
+                state.last_error = f"Failed to load AI models: {str(e)}"
+            return
 
         prev_time = 0
 
@@ -144,21 +163,36 @@ def camera_loop():
 
                     # ── Gesture confirmation logic ───────────────────
                     with state.lock:
-                        if detected_letter:
-                            if detected_letter == state.current_gesture:
-                                state.gesture_frames += 1
-                            else:
-                                state.current_gesture = detected_letter
-                                state.gesture_frames = 1
+                        # Decrement cooldown counter if active
+                        if state.cooldown_frames > 0:
+                            state.cooldown_frames -= 1
 
-                            # Once held long enough, add to word
-                            if state.gesture_frames == state.CONFIRMATION_FRAMES:
-                                state.current_word    += detected_letter
-                                state.last_added_letter = detected_letter
-                                state.gesture_frames  = 0  # Reset so same letter can be typed again
+                        if detected_letter:
+                            # If they sign a different gesture, immediately clear the cooldown
+                            if detected_letter != state.last_added_letter:
+                                state.cooldown_frames = 0
+
+                            # If cooldown is active for the same letter, ignore it
+                            if state.cooldown_frames > 0 and detected_letter == state.last_added_letter:
+                                state.gesture_frames = 0
+                            else:
+                                if detected_letter == state.current_gesture:
+                                    state.gesture_frames += 1
+                                else:
+                                    state.current_gesture = detected_letter
+                                    state.gesture_frames = 1
+
+                                # Once held long enough, add to word
+                                if state.gesture_frames == state.CONFIRMATION_FRAMES:
+                                    state.current_word    += detected_letter
+                                    state.last_added_letter = detected_letter
+                                    state.gesture_frames  = 0  # Reset so same letter can be typed again
+                                    state.cooldown_frames = 30  # Cooldown of 30 frames
                         else:
                             state.current_gesture = None
                             state.gesture_frames  = 0
+                            # If no hand/gesture is visible, clear the cooldown to allow re-typing the same letter
+                            state.cooldown_frames = 0
 
                     # ── Overlay: Detected letter and current word ────
                     display_char = detected_letter if detected_letter else "?"
@@ -208,6 +242,9 @@ def camera_loop():
 
     except Exception as e:
         print(f"[ERROR] Exception in camera thread: {e}")
+        with state.lock:
+            state.camera_running = False
+            state.last_error = f"Camera thread error: {str(e)}"
     finally:
         # ── Cleanup after loop ends ──────────────────────────────
         if detector:
@@ -325,6 +362,7 @@ def status():
             "sentence":           state.sentence,
             "last_added_letter":  state.last_added_letter,
             "fps":                state.fps,
+            "error":              state.last_error,
         })
 
 
@@ -340,6 +378,7 @@ def start_camera():
 
         state.camera_running = True
         state.latest_frame   = None  # Clear any old frame
+        state.last_error     = None  # Reset error on start
 
     # Create and start the background thread
     # daemon=True means this thread will auto-stop when Flask stops
@@ -364,6 +403,7 @@ def stop_camera():
         state.latest_frame   = None
         state.current_gesture = None
         state.gesture_frames  = 0
+        state.last_error     = None  # Reset error on stop
 
     print("[OK] Camera stop requested.")
     return jsonify({"status": "stopped"})

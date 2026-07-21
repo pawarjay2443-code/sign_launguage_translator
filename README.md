@@ -78,9 +78,29 @@ http://127.0.0.1:5000/
 1.  Open the website home page and click **Launch Translator**.
 2.  Click the **Start Camera** button to start the live feed.
 3.  Stand/sit in front of the webcam. The system requires face detection to activate.
-4.  Perform any static gesture (A, B, C, D, E, F, I, K, L, O, S, U, V, W, Y) and **hold it** for 15 frames.
-5.  Watch the progress bar confirm the letter and append it to the **Word Builder**.
+4.  Perform any supported gesture and **hold it** for 15 frames.
+5.  Watch the progress bar confirm the character and append it to the **Word Builder**.
 6.  Perform actions like **Space** to build words, **Backspace** to edit, and **Speak** to read the full sentence.
+
+---
+
+## 📋 Current Scope & Limitations
+
+### 🔤 Supported Alphabet (15 ISL Letters)
+The following 15 static, one-handed ISL letter gestures are supported by the rule-based recognition system:
+*   **A, B, C, D, E, F, I, K, L, O, S, U, V, W, Y**
+
+### 🔢 Supported Digits (0–9)
+The system supports numeric gestures 0–9 using finger-counting logic:
+*   **0:** Two-handed fists (both hands active with 0 fingers up).
+*   **1 to 5:** One-handed finger counts (if they do not match a specific letter shape).
+    *   *Example 3:* Extend Thumb + Index + Middle.
+    *   *Example 4:* Extend Thumb + Index + Middle + Ring.
+*   **6 to 9:** Two-handed finger counts (sum of fingers raised on both active hands).
+    *   *Example 6:* Raise 5 fingers on one hand and 1 finger on the other hand.
+
+### 🚫 Out of Scope
+*   **Two-handed or Dynamic Alphabet Letters:** **G, H, J, M, N, P, Q, R, T, X, Z** are out of scope for the rule-based algorithmic approach as they require dynamic motion tracking or complex two-handed alphabet mapping.
 
 ---
 

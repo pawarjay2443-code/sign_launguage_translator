@@ -32,6 +32,7 @@ let pollInterval   = null;   // setInterval handle for status polling
 let lastLetter     = "";     // Tracks last confirmed letter to detect changes
 let lastWord       = "";     // Tracks last word to detect changes
 let failedPollsCount = 0;    // Tracks consecutive failed polls to detect offline server
+let lastError      = "";     // Tracks last error to show toast only once
 
 
 // ─────────────────────────────────────────────────────────────
@@ -107,7 +108,7 @@ async function pollStatus() {
       }
     */
 
-    updateCameraStatus(data.camera_running);
+    updateCameraStatus(data.camera_running, data.error);
     updateLetterDisplay(data.current_gesture, data.gesture_progress, data.confirmation_frames);
     updateWordDisplay(data.current_word, data.sentence);
     updateFps(data.fps);
@@ -116,6 +117,14 @@ async function pollStatus() {
     if (data.last_added_letter && data.last_added_letter !== lastLetter) {
       showToast(`✓ "${data.last_added_letter}" added`);
       lastLetter = data.last_added_letter;
+    }
+
+    // Handle displaying error toast when it changes
+    if (data.error && data.error !== lastError) {
+      showToast(`❌ Error: ${data.error}`);
+      lastError = data.error;
+    } else if (!data.error) {
+      lastError = "";
     }
 
   } catch (err) {
@@ -135,7 +144,8 @@ async function pollStatus() {
 /**
  * Update the header status pill (Camera On/Off indicator).
  */
-function updateCameraStatus(isRunning) {
+function updateCameraStatus(isRunning, errorMsg) {
+  const overlayContent = elVideoOverlay.querySelector(".overlay-content");
   if (isRunning) {
     elStatusPill.classList.add("active");
     elStatusLabel.textContent = "Camera Active";
@@ -144,10 +154,28 @@ function updateCameraStatus(isRunning) {
     elBtnStop.disabled  = false;
   } else {
     elStatusPill.classList.remove("active");
-    elStatusLabel.textContent = "Camera Off";
     elVideoOverlay.classList.add("visible");     // Show the overlay
     elBtnStart.disabled = false;
     elBtnStop.disabled  = true;
+
+    if (errorMsg) {
+      elStatusLabel.textContent = "Camera Error";
+      if (overlayContent) {
+        overlayContent.innerHTML = `
+          <span class="overlay-icon" style="color: #ff4a4a;">⚠️</span>
+          <p style="color: #ff4a4a; font-weight: 600;">System Error</p>
+          <p style="font-size: 0.9rem; margin-top: 5px; max-width: 80%;">${errorMsg}</p>
+        `;
+      }
+    } else {
+      elStatusLabel.textContent = "Camera Off";
+      if (overlayContent) {
+        overlayContent.innerHTML = `
+          <span class="overlay-icon">📷</span>
+          <p>Click <strong>Start Camera</strong> to begin</p>
+        `;
+      }
+    }
   }
 }
 
@@ -251,6 +279,7 @@ function showToast(message) {
 async function startCamera() {
   if (elBtnStart.disabled) return;
   elBtnStart.disabled = true;
+  lastError = ""; // Reset error tracker
   try {
     const res = await fetch("/start", { method: "POST" });
     const data = await res.json();
