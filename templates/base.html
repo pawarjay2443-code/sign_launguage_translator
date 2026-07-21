@@ -4,12 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{% block title %}SignAI | Indian Sign Language Translator{% endblock %}</title>
-  <meta name="description" content="Real-time AI-powered Indian Sign Language translator using webcam, MediaPipe, and Flask." />
+  <meta name="description" content="Accessible real-time AI-powered Indian Sign Language translator using computer vision, MediaPipe, and Flask." />
   
-  <!-- Google Font: Inter & JetBrains Mono -->
+  <!-- Google Fonts: Fraunces (Editorial High-Contrast Display Serif) & Plus Jakarta Sans (Readable Workhorse Sans-Serif) -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;0,9..144,800;1,9..144,400;1,9..144,600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
   
   <!-- Main Stylesheet -->
   <link rel="stylesheet" href="/static/css/style.css" />
@@ -17,10 +17,13 @@
 </head>
 <body>
 
+  <!-- SKIP TO CONTENT (A11y Best Practice) -->
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+
   <!-- HEADER -->
   <header class="site-header">
     <div class="header-inner">
-      <a href="/" class="logo" style="text-decoration: none; color: inherit;">
+      <a href="/" class="logo" aria-label="SignAI Home">
         <span class="logo-icon" aria-hidden="true">🤟</span>
         <div class="logo-text">
           <span class="logo-title">SignAI</span>
@@ -28,19 +31,24 @@
         </div>
       </a>
       
-      <nav class="nav-links">
+      <nav class="nav-links" aria-label="Main Navigation">
         <a href="/" class="nav-item">Home</a>
         <a href="/dashboard" class="nav-item nav-btn">Translator App</a>
       </nav>
     </div>
   </header>
 
-  <!-- MAIN CONTENT -->
-  {% block content %}{% endblock %}
+  <!-- MAIN CONTENT CONTAINER -->
+  <div id="main-content">
+    {% block content %}{% endblock %}
+  </div>
 
   <!-- FOOTER -->
   <footer class="site-footer">
-    <p>Final Year Diploma IT Project &nbsp;·&nbsp; AI-Based Sign Language Translator &nbsp;·&nbsp; Built with Python, MediaPipe &amp; Flask</p>
+    <div class="footer-inner">
+      <p>Agnel Polytechnic, Vashi &middot; Final Year Diploma IT Project &middot; Built with OpenCV, MediaPipe &amp; Flask</p>
+      <p class="a11y-assurance">Designed for high-contrast accessibility (WCAG AA Compliant)</p>
+    </div>
   </footer>
 
   {% block extra_js %}{% endblock %}

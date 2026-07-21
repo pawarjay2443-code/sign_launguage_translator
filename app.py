@@ -488,6 +488,96 @@ def health():
     })
 
 
+@app.route("/assistant", methods=["POST"])
+def assistant():
+    """
+    Collapsible AI helper API route.
+    Calls Anthropic API if ANTHROPIC_API_KEY is available,
+    otherwise falls back to a smart local FAQ matcher.
+    """
+    try:
+        data = request.get_json() or {}
+        question = data.get("question", "").strip()
+        if not question:
+            return jsonify({"answer": "Please ask a question."})
+
+        # Check for Anthropic API Key
+        api_key = os.environ.get("ANTHROPIC_API_KEY")
+        if api_key:
+            try:
+                import urllib.request
+                import json
+                
+                req = urllib.request.Request(
+                    "https://api.anthropic.com/v1/messages",
+                    data=json.dumps({
+                        "model": "claude-3-5-sonnet-20241022",
+                        "max_tokens": 300,
+                        "messages": [
+                            {
+                                "role": "user",
+                                "content": (
+                                    "You are the SignAI Assistive Technology Helper. The user is using our Flask + MediaPipe "
+                                    "Indian Sign Language (ISL) translator. It supports 15 letters (A, B, C, D, E, F, I, K, L, O, S, U, V, W, Y) "
+                                    "and numeric gestures (0-9). The user asks: " + question + "\n"
+                                    "Provide a very short, polite, and helpful answer (under 3 sentences) focusing on accessibility and how they can resolve their issue."
+                                )
+                            }
+                        ]
+                    }).encode("utf-8"),
+                    headers={
+                        "x-api-key": api_key,
+                        "anthropic-version": "2023-06-01",
+                        "content-type": "application/json"
+                    },
+                    method="POST"
+                )
+                with urllib.request.urlopen(req, timeout=10) as response:
+                    resp_data = json.loads(response.read().decode("utf-8"))
+                    answer = resp_data["content"][0]["text"]
+                    return jsonify({"answer": answer})
+            except Exception as api_err:
+                print(f"[ASSISTANT API ERROR] {api_err}")
+
+        # Intelligent local fallback helper
+        question_lower = question.lower()
+        if "detect" in question_lower or "camera" in question_lower or "work" in question_lower:
+            answer = (
+                "Make sure your face is visible to the camera! The translation pipeline requires "
+                "active face detection to start. Also, position your hand clearly in the frame "
+                "with good lighting, and hold the gesture for 15 frames."
+            )
+        elif "k" in question_lower:
+            answer = (
+                "To sign the letter 'K', raise your index and middle fingers spread apart (like a peace sign) "
+                "and extend your thumb outwards. Hold it steady so the tracker can confirm the shape!"
+            )
+        elif "number" in question_lower or "digit" in question_lower or "count" in question_lower:
+            answer = (
+                "SignAI supports digits 0–9. For 1–5, hold up that many fingers on one hand (if it doesn't match a letter). "
+                "For 6–9, use both hands (e.g. 5 on one hand, 1 on the other for 6). For 0, show two closed fists."
+            )
+        elif "supported" in question_lower or "letters" in question_lower or "scope" in question_lower:
+            answer = (
+                "We support 15 static one-handed letters: A, B, C, D, E, F, I, K, L, O, S, U, V, W, Y. "
+                "Dynamic/two-handed letters (G, H, J, M, N, P, Q, R, T, X, Z) are out of scope for our rules."
+            )
+        elif "cooldown" in question_lower or "repeat" in question_lower or "double" in question_lower:
+            answer = (
+                "We have a 30-frame cooldown after confirming a letter to prevent duplicate additions. "
+                "Simply briefly lower your hand or change your sign to immediately register the next character!"
+            )
+        else:
+            answer = (
+                "Welcome to SignAI! To start, click 'Start Camera', sit in front of the lens so your face is detected, "
+                "and perform any of the 15 supported ISL gestures (A-Y) or numbers (0-9) clearly in the frame."
+            )
+        return jsonify({"answer": answer})
+    except Exception as ex:
+        print(f"[ASSISTANT EXCEPTION] {ex}")
+        return jsonify({"answer": "I'm sorry, I encountered an issue processing your request. Please check your camera positioning and try again."})
+
+
 @app.errorhandler(404)
 def not_found_error(error):
     return render_template("landing.html"), 404

@@ -1,77 +1,130 @@
 {% extends "base.html" %}
 
-{% block title %}SignAI | Real-Time AI Sign Language Translator{% endblock %}
+{% block title %}SignAI | Assistive Real-Time Sign Language Translation{% endblock %}
 
 {% block content %}
 <main class="landing-container">
   
   <!-- HERO SECTION -->
-  <section class="hero-section">
-    <h1 class="hero-title">Breaking Barriers with <br><span class="highlight">Real-Time Sign Translation</span></h1>
+  <section class="hero-section" aria-labelledby="hero-heading">
+    <h1 id="hero-heading" class="hero-title">
+      Breaking Communication Barriers with <span class="highlight">SignAI</span>
+    </h1>
     <p class="hero-subtitle">
-      A professional final-year project designed to assist communication between deaf/mute people and the general public using modern AI vision tech.
+      A final-year engineering evaluation project demonstrating high-performance real-time translation of Indian Sign Language (ISL) gestures to text and speech. Designed with accessibility-first principles.
     </p>
     <div class="hero-cta">
-      <a href="/dashboard" class="btn btn-start landing-cta-btn">
-        <span class="btn-icon">▶</span> Launch Translator
+      <a href="/dashboard" class="btn btn-start landing-cta-btn" role="button">
+        <svg class="btn-icon-svg" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        Launch Translation App
       </a>
     </div>
   </section>
 
-  <!-- FEATURES SECTION -->
-  <section class="features-grid">
-    <div class="card feature-card">
-      <div class="feature-icon">📷</div>
-      <h3>Real-Time Tracking</h3>
-      <p>Tracks 21 hand joints dynamically using MediaPipe's high-performance pipelines directly in the browser.</p>
-    </div>
-    
-    <div class="card feature-card">
-      <div class="feature-icon">🧠</div>
-      <h3>Smart Recognition</h3>
-      <p>Rule-based algorithmic recognition maps hand shapes instantly to Indian Sign Language letters.</p>
-    </div>
-    
-    <div class="card feature-card">
-      <div class="feature-icon">🔊</div>
-      <h3>Text-to-Speech</h3>
-      <p>Listen to full formulated sentences in high-fidelity synthesized speech using Web Speech APIs.</p>
-    </div>
+  <!-- HIGHLIGHTS / KEY OBJECTIVES -->
+  <section class="info-section" aria-labelledby="highlights-heading">
+    <h2 id="highlights-heading" class="section-title text-center">Core Objectives & Design</h2>
+    <div class="features-grid">
+      <div class="card feature-card">
+        <div class="feature-header">
+          <span class="feature-num">01</span>
+          <h3 class="feature-title">Real-Time Joint Tracking</h3>
+        </div>
+        <p class="feature-desc">Leverages MediaPipe's high-fidelity hand landmarker API to track 21 coordinate joints on each hand dynamically in the browser environment.</p>
+      </div>
+      
+      <div class="card feature-card">
+        <div class="feature-header">
+          <span class="feature-num">02</span>
+          <h3 class="feature-title">High-Contrast Accessibility</h3>
+        </div>
+        <p class="feature-desc">Built using semantic HTML5 layouts, visible focus ring states, aria-live regions, and color contrast ratios exceeding WCAG AA criteria.</p>
+      </div>
+      
+      <div class="card feature-card">
+        <div class="feature-header">
+          <span class="feature-num">03</span>
+          <h3 class="feature-title">Tactile Audio Output</h3>
+        </div>
+        <p class="feature-desc">Translates gestured letters into words and continuous sentences. Features high-fidelity client-side Web Speech TTS synthesis.</p>
+      </div>
 
-    <div class="card feature-card">
-      <div class="feature-icon">👤</div>
-      <h3>Face Activation</h3>
-      <p>Intelligent activation locks/unlocks the translation engine automatically by detecting when a user faces the screen.</p>
+      <div class="card feature-card">
+        <div class="feature-header">
+          <span class="feature-num">04</span>
+          <h3 class="feature-title">Intelligent Activation</h3>
+        </div>
+        <p class="feature-desc">Features OpenCV face-detection logic that unlocks and locks the translation pipeline only when a user is actively facing the screen.</p>
+      </div>
     </div>
   </section>
 
-  <!-- SYSTEM OVERVIEW SECTION -->
-  <section class="overview-section card">
-    <h2 class="section-title">System Architecture</h2>
-    <p>
-      This final year project implements a modular stack utilizing OpenCV for webcam capture, MediaPipe Hand Landmarker for real-time skeletal coordinate mapping, standard Flask for pipeline orchestration and endpoint serving, and Web APIs for offline Text-to-Speech conversion.
-    </p>
+  <!-- PROJECT ARCHITECTURE / Rigor overview -->
+  <section class="overview-section card" aria-labelledby="architecture-heading">
+    <div class="overview-inner">
+      <h2 id="architecture-heading" class="section-title">System Architecture & Technical Rigor</h2>
+      <p class="overview-text">
+        The system utilizes a modular backend and client architecture. A background thread processes camera frames using <strong>OpenCV</strong> and extracts <strong>MediaPipe</strong> landmarks. These landmarks are passed through a pipeline that checks geometrical joint configurations (angles, finger extension state, and relative coordinates) to map hand shapes to ISL representations.
+      </p>
+      <div class="tech-stack-row">
+        <span class="tech-tag">Python &amp; Flask</span>
+        <span class="tech-tag">OpenCV (cv2)</span>
+        <span class="tech-tag">Google MediaPipe</span>
+        <span class="tech-tag">Web Speech API</span>
+        <span class="tech-tag">Semantic HTML5 &amp; CSS3</span>
+      </div>
+    </div>
   </section>
 
-  <!-- TEAM SECTION -->
-  <section class="team-section">
-    <h2 class="section-title text-center">Project Development Team</h2>
+  <!-- LIMITATIONS & SCOPE -->
+  <section class="scope-section" aria-labelledby="scope-heading">
+    <h2 id="scope-heading" class="section-title text-center">Translation Scope &amp; Limitations</h2>
+    <div class="scope-grid">
+      <div class="card scope-card supported">
+        <h3 class="scope-card-title">✓ In-Scope Gestures</h3>
+        <ul class="scope-list">
+          <li><strong>15 ISL Letters:</strong> Static, one-handed signs for A, B, C, D, E, F, I, K, L, O, S, U, V, W, and Y.</li>
+          <li><strong>Digits 0 to 9:</strong> Dynamic finger counting. 1–5 are single-handed, 6–9 are two-handed, and 0 is signed as two closed fists.</li>
+          <li><strong>Debounced Confirmation:</strong> Gestures must be held for 15 frames to trigger a confirmed character input.</li>
+        </ul>
+      </div>
+      <div class="card scope-card out-of-scope">
+        <h3 class="scope-card-title">✗ Out-of-Scope (Future Work)</h3>
+        <ul class="scope-list">
+          <li><strong>Dynamic Letters:</strong> Letters requiring motion (e.g. J, Z) are not supported by the static rules engine.</li>
+          <li><strong>Two-Handed Alphabet:</strong> Complex alphabetic letters requiring two active hands (e.g. G, H, M, N, P, Q, R, T, X) are out of scope.</li>
+          <li><strong>Sentence Parsing:</strong> Natural language grammatical structuring is left as a post-processing step.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- DEVELOPMENT TEAM -->
+  <section class="team-section" aria-labelledby="team-heading">
+    <h2 id="team-heading" class="section-title text-center">Project Development Team</h2>
     <div class="team-grid">
       <div class="card team-card">
-        <h4>Om Chavan</h4>
-        <p class="role">Team Leader & Core Developer</p>
+        <div class="team-avatar">OC</div>
+        <h3 class="team-name">Om Chavan</h3>
+        <p class="role">Team Leader &amp; Core AI Developer</p>
       </div>
       <div class="card team-card">
-        <h4>Jay</h4>
-        <p class="role">Integration & Backend Engineer</p>
+        <div class="team-avatar">J</div>
+        <h3 class="team-name">Jay</h3>
+        <p class="role">Integration &amp; Backend Engineer</p>
       </div>
       <div class="card team-card">
-        <h4>Ayush</h4>
-        <p class="role">UI/UX & Frontend Designer</p>
+        <div class="team-avatar">A</div>
+        <h3 class="team-name">Ayush</h3>
+        <p class="role">UI/UX &amp; Accessibility Designer</p>
       </div>
       <div class="card team-card">
-        <h4>Tejas</h4>
-        <p class="role">QA & Documentation Lead</p>
+        <div class="team-avatar">T</div>
+        <h3 class="team-name">Tejas</h3>
+        <p class="role">QA &amp; Documentation Lead</p>
       </div>
     </div>
   </section>
