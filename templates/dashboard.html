@@ -73,6 +73,53 @@
     </div>
   </section>
 
+  <!-- TEXT TO SIGN (REVERSE TRANSLATION) -->
+  <div class="card reverse-translation-card" id="reverse-translation-card">
+    <h3 class="card-heading">🔤 Text to Sign (Reverse Translation)</h3>
+    
+    <form class="reverse-input-form" onsubmit="translateTextToSign(event)">
+      <div class="input-wrapper">
+        <input type="text" id="reverse-text-input" placeholder="Type text to convert to signs (e.g. HELLO)..." required aria-label="Text to translate into signs" />
+        <button type="button" class="btn-mic" id="btn-mic-input" onclick="toggleMicInput()" title="Voice input [Speech Recognition]" style="display: none;">
+          <svg class="mic-icon-svg" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+          </svg>
+        </button>
+      </div>
+      <button type="submit" class="btn btn-speak" id="btn-reverse-submit">Translate</button>
+    </form>
+
+    <!-- Filmstrip view -->
+    <div class="filmstrip-wrapper" id="filmstrip-wrapper" style="display: none;">
+      <div class="filmstrip-preview-box">
+        <div class="filmstrip-active-img-container">
+          <img id="filmstrip-large-preview" src="" alt="Active sign preview" style="display: none;" />
+          <span id="filmstrip-preview-fallback">—</span>
+        </div>
+        <div class="filmstrip-active-letter" id="filmstrip-active-letter">—</div>
+      </div>
+      
+      <!-- Timeline Filmstrip thumbnails row -->
+      <div class="filmstrip-timeline" id="filmstrip-timeline">
+        <!-- Letter cards injected dynamically -->
+      </div>
+      
+      <!-- Filmstrip Controls -->
+      <div class="filmstrip-controls">
+        <button type="button" class="btn btn-secondary" id="btn-filmstrip-play" onclick="toggleFilmstripPlay()">
+          <svg class="btn-icon-svg" id="play-pause-icon" fill="currentColor" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+            <path d="M8 5v14l11-7z" />
+          </svg>
+          <span id="play-pause-label">Play</span>
+        </button>
+        <div class="speed-control">
+          <label for="filmstrip-speed" class="speed-label">Speed: <span id="speed-val">1.0</span>s</label>
+          <input type="range" id="filmstrip-speed" min="0.2" max="3.0" step="0.1" value="1.0" oninput="updateFilmstripSpeed(this.value)" aria-label="Playback speed in seconds" />
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ─── RIGHT COLUMN: Translation Display & Builders ───────── -->
   <aside class="info-panel" aria-label="Translation panels">
 
@@ -136,6 +183,15 @@
       <div class="sentence-display" id="sentence-display" aria-live="polite">
         <p id="sentence-text" class="sentence-text">Your sentence will appear here...</p>
       </div>
+      
+      <!-- QUICK PHRASES ROW -->
+      <div class="quick-phrases-group">
+        <span class="quick-phrases-label">Quick Phrases:</span>
+        <div class="quick-phrases-row" id="quick-phrases-row">
+          <!-- Dynamically populated via JS -->
+        </div>
+      </div>
+
       <div class="button-row tight">
         <button id="btn-speak"
                 class="btn btn-speak"

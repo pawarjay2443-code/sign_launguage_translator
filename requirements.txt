@@ -8,7 +8,7 @@
 # ============================================================
 
 # Core AI / Computer Vision
-opencv-python>=4.8.0       # Webcam capture and frame processing
+opencv-python>=4.8.0,<5    # Webcam capture and frame processing
 mediapipe>=0.10.0          # Hand landmark detection AI model
 numpy>=1.24.0              # Numerical arrays (used by OpenCV)
 
@@ -21,4 +21,10 @@ pyttsx3>=2.90              # Offline TTS engine (not used by Flask web mode)
 # Machine Learning for Indian Sign Language (ISL)
 scikit-learn>=1.2.0        # For training the classifier model
 joblib>=1.2.0              # For saving and loading models
+
+# Image Processing
+Pillow>=10.0.0             # Image resizing and normalization
+
+# AI Assistant
+anthropic>=0.18.0          # Anthropic API client
 

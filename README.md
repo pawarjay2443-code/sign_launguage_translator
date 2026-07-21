@@ -111,3 +111,10 @@ The system supports numeric gestures 0–9 using finger-counting logic:
 *   **Tejas** (QA & Documentation Lead)
 
 Agnel Polytechnic, Vashi — Diploma in Information Technology
+
+---
+
+## 📚 Dataset Attribution
+
+This project utilizes visual sign image assets for reverse translation sourced from the CC0-licensed dataset:
+- **RealSign Indian Sign Language Dataset (CC0 1.0)** — [GitHub Repository](https://github.com/RealSign62/RealSign-Indian-Sign-Language-Dataset)

@@ -488,18 +488,77 @@ def health():
     })
 
 
+@app.route("/text-to-sign", methods=["GET"])
+def text_to_sign():
+    """
+    Reverse translation endpoint: converts text/phrase to a sequence of sign images.
+    Returns JSON list of objects: [{"letter": "A", "image_url": "/static/img/signs/A.png", "exists": true}, ...]
+    """
+    text = request.args.get("text", "").strip().upper()
+    result = []
+    for char in text:
+        if char.isalnum():
+            image_filename = f"{char}.png"
+            image_path = os.path.join("static", "img", "signs", image_filename)
+            exists = os.path.exists(image_path)
+            result.append({
+                "letter": char,
+                "image_url": f"/static/img/signs/{image_filename}" if exists else None,
+                "exists": exists
+            })
+        elif char == " ":
+            result.append({
+                "letter": " ",
+                "image_url": None,
+                "exists": False,
+                "is_space": True
+            })
+    return jsonify(result)
+
+
 @app.route("/assistant", methods=["POST"])
 def assistant():
     """
     Collapsible AI helper API route.
     Calls Anthropic API if ANTHROPIC_API_KEY is available,
     otherwise falls back to a smart local FAQ matcher.
+    Includes inline sign images if the user queries a supported letter.
     """
     try:
         data = request.get_json() or {}
         question = data.get("question", "").strip()
         if not question:
-            return jsonify({"answer": "Please ask a question."})
+            return jsonify({"answer": "Please ask a question.", "image_url": None})
+
+        # Run regex/keyword check for a supported letter
+        import re
+        detected_letter = None
+        
+        # Matches "how to sign K", "sign for K", "show me K", "gesture for K", "letter K", "sign K"
+        match = re.search(
+            r"\b(?:sign\s+for|how\s+to\s+sign|show\s+me|gesture\s+for|what\s+is|letter|sign)\s+['\"`]?([a-zA-Z])['\"`]?\b", 
+            question, 
+            re.IGNORECASE
+        )
+        if match:
+            detected_letter = match.group(1).upper()
+        else:
+            # Simple fallback check: look for any single character word if question contains sign-related terms
+            if any(kw in question.lower() for kw in ["sign", "gesture", "show", "how", "hand", "letter"]):
+                words = question.split()
+                for w in words:
+                    clean_w = w.strip("?.,!'\"`()").upper()
+                    if len(clean_w) == 1 and clean_w.isalpha():
+                        detected_letter = clean_w
+                        break
+
+        # Check if the sign image exists
+        image_url = None
+        if detected_letter:
+            image_filename = f"{detected_letter}.png"
+            image_path = os.path.join("static", "img", "signs", image_filename)
+            if os.path.exists(image_path):
+                image_url = f"/static/img/signs/{image_filename}"
 
         # Check for Anthropic API Key
         api_key = os.environ.get("ANTHROPIC_API_KEY")
@@ -535,7 +594,7 @@ def assistant():
                 with urllib.request.urlopen(req, timeout=10) as response:
                     resp_data = json.loads(response.read().decode("utf-8"))
                     answer = resp_data["content"][0]["text"]
-                    return jsonify({"answer": answer})
+                    return jsonify({"answer": answer, "image_url": image_url})
             except Exception as api_err:
                 print(f"[ASSISTANT API ERROR] {api_err}")
 
@@ -547,11 +606,17 @@ def assistant():
                 "active face detection to start. Also, position your hand clearly in the frame "
                 "with good lighting, and hold the gesture for 15 frames."
             )
-        elif "k" in question_lower:
-            answer = (
-                "To sign the letter 'K', raise your index and middle fingers spread apart (like a peace sign) "
-                "and extend your thumb outwards. Hold it steady so the tracker can confirm the shape!"
-            )
+        elif detected_letter:
+            if image_url:
+                answer = (
+                    f"To sign the letter '{detected_letter}', consult the reference image displayed below. "
+                    "Make sure to hold the handshape clearly within the camera frame for 15 frames to register it."
+                )
+            else:
+                answer = (
+                    f"You asked about the letter '{detected_letter}'. However, that sign isn't in our supported set yet. "
+                    "SignAI currently supports 15 letters: A, B, C, D, E, F, I, K, L, O, S, U, V, W, Y."
+                )
         elif "number" in question_lower or "digit" in question_lower or "count" in question_lower:
             answer = (
                 "SignAI supports digits 0–9. For 1–5, hold up that many fingers on one hand (if it doesn't match a letter). "
@@ -572,10 +637,13 @@ def assistant():
                 "Welcome to SignAI! To start, click 'Start Camera', sit in front of the lens so your face is detected, "
                 "and perform any of the 15 supported ISL gestures (A-Y) or numbers (0-9) clearly in the frame."
             )
-        return jsonify({"answer": answer})
+        return jsonify({"answer": answer, "image_url": image_url})
     except Exception as ex:
         print(f"[ASSISTANT EXCEPTION] {ex}")
-        return jsonify({"answer": "I'm sorry, I encountered an issue processing your request. Please check your camera positioning and try again."})
+        return jsonify({
+            "answer": "I'm sorry, I encountered an issue processing your request. Please check your camera positioning and try again.",
+            "image_url": None
+        })
 
 
 @app.errorhandler(404)

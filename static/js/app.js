@@ -290,37 +290,42 @@ async function doBackspace() {
   }
 }
 
-async function speakText() {
+async function speakText(overrideText = null) {
   if (!("speechSynthesis" in window)) {
     showToast("❌ Browser speech synthesis unsupported");
     return;
   }
 
-  try {
-    const res  = await fetch("/speak");
-    const data = await res.json();
+  let text = "";
+  if (overrideText) {
+    text = overrideText;
+  } else {
+    try {
+      const res  = await fetch("/speak");
+      const data = await res.json();
 
-    if (data.status === "empty" || !data.text) {
-      showToast("⚠ No text to speak yet");
+      if (data.status === "empty" || !data.text) {
+        showToast("⚠ No text to speak yet");
+        return;
+      }
+      text = data.text;
+    } catch (err) {
+      console.error("[speakText] Error:", err);
+      showToast("❌ Speech synthesis failed");
       return;
     }
-
-    const text = data.text;
-    showToast(`🔊 Speaking sentence`);
-
-    window.speechSynthesis.cancel();
-
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang  = "en-US";
-    utterance.rate  = 0.95;
-    utterance.pitch = 1.0;
-
-    window.speechSynthesis.speak(utterance);
-
-  } catch (err) {
-    console.error("[speakText] Error:", err);
-    showToast("❌ Speech synthesis failed");
   }
+
+  showToast(`🔊 Speaking text`);
+
+  window.speechSynthesis.cancel();
+
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang  = "en-US";
+  utterance.rate  = 0.95;
+  utterance.pitch = 1.0;
+
+  window.speechSynthesis.speak(utterance);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -381,7 +386,7 @@ async function askAssistant(event) {
     const placeholder = document.getElementById(placeholderId);
     if (placeholder) placeholder.remove();
 
-    appendChatMessage(data.answer || "No response received.", "assistant");
+    appendChatMessage(data.answer || "No response received.", "assistant", null, data.image_url);
   } catch (err) {
     console.error("[askAssistant] Error:", err);
     const placeholder = document.getElementById(placeholderId);
@@ -393,7 +398,7 @@ async function askAssistant(event) {
   }
 }
 
-function appendChatMessage(text, sender, id = null) {
+function appendChatMessage(text, sender, id = null, imageUrl = null) {
   const chatLog = document.getElementById("assistant-chat-log");
   if (!chatLog) return;
 
@@ -404,10 +409,293 @@ function appendChatMessage(text, sender, id = null) {
   const p = document.createElement("p");
   p.textContent = text;
   bubble.appendChild(p);
+
+  // If there's an inline image, render it underneath the answer text
+  if (imageUrl) {
+    const img = document.createElement("img");
+    img.src = imageUrl;
+    img.alt = `ISL Sign gesture illustration`;
+    img.className = "chat-sign-img";
+    img.onerror = () => {
+      img.style.display = "none";
+      const errorMsg = document.createElement("p");
+      errorMsg.className = "chat-img-fallback";
+      errorMsg.textContent = "⚠️ (Sign reference image failed to load)";
+      bubble.appendChild(errorMsg);
+    };
+    bubble.appendChild(img);
+  }
+
   chatLog.appendChild(bubble);
 
   // Auto-scroll chat log
   chatLog.scrollTop = chatLog.scrollHeight;
+}
+
+// ─────────────────────────────────────────────────────────────
+// REVERSE TRANSLATION (TEXT TO SIGN FILMSTRIP & MIC INPUT)
+// ─────────────────────────────────────────────────────────────
+let filmstripQueue = [];
+let filmstripIndex = 0;
+let filmstripPlayInterval = null;
+let filmstripPlaybackSpeed = 1.0; // delay in seconds
+let recognition = null;
+let isListening = false;
+
+async function translateTextToSign(event) {
+  if (event) event.preventDefault();
+  
+  const input = document.getElementById("reverse-text-input");
+  if (!input) return;
+  const text = input.value.trim();
+  if (!text) return;
+
+  stopFilmstripPlayback();
+
+  try {
+    const res = await fetch(`/text-to-sign?text=${encodeURIComponent(text)}`);
+    const data = await res.json();
+
+    filmstripQueue = data;
+    filmstripIndex = 0;
+
+    renderFilmstripTimeline();
+
+    if (filmstripQueue.length > 0) {
+      document.getElementById("filmstrip-wrapper").style.display = "flex";
+      highlightFilmstripFrame(0);
+    } else {
+      document.getElementById("filmstrip-wrapper").style.display = "none";
+      showToast("⚠️ No signs could be extracted from input.");
+    }
+  } catch (err) {
+    console.error("[translateTextToSign] Error:", err);
+    showToast("❌ Failed to parse signs.");
+  }
+}
+
+function renderFilmstripTimeline() {
+  const timeline = document.getElementById("filmstrip-timeline");
+  if (!timeline) return;
+
+  timeline.innerHTML = "";
+  filmstripQueue.forEach((item, idx) => {
+    const itemCard = document.createElement("div");
+    itemCard.className = "filmstrip-item";
+    
+    if (item.is_space) {
+      itemCard.classList.add("space-item");
+      const span = document.createElement("span");
+      span.textContent = "␣";
+      itemCard.appendChild(span);
+      itemCard.title = "Space";
+    } else {
+      if (item.exists && item.image_url) {
+        const img = document.createElement("img");
+        img.src = item.image_url;
+        img.alt = `Sign for ${item.letter}`;
+        itemCard.appendChild(img);
+      } else {
+        const span = document.createElement("span");
+        span.textContent = item.letter;
+        itemCard.appendChild(span);
+      }
+      itemCard.title = `Letter: ${item.letter}`;
+    }
+
+    itemCard.onclick = () => {
+      stopFilmstripPlayback();
+      highlightFilmstripFrame(idx);
+    };
+
+    timeline.appendChild(itemCard);
+  });
+}
+
+function highlightFilmstripFrame(index) {
+  if (index < 0 || index >= filmstripQueue.length) return;
+  filmstripIndex = index;
+
+  // Highlight thumbnail in scrollbar
+  const items = document.querySelectorAll(".filmstrip-timeline .filmstrip-item");
+  items.forEach((item, idx) => {
+    if (idx === index) {
+      item.classList.add("active");
+      item.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+    } else {
+      item.classList.remove("active");
+    }
+  });
+
+  // Highlight preview window
+  const activeItem = filmstripQueue[index];
+  const largePreview = document.getElementById("filmstrip-large-preview");
+  const fallback = document.getElementById("filmstrip-preview-fallback");
+  const activeLetter = document.getElementById("filmstrip-active-letter");
+
+  if (activeItem.is_space) {
+    if (largePreview) largePreview.style.display = "none";
+    if (fallback) {
+      fallback.textContent = "␣";
+      fallback.style.display = "block";
+    }
+    if (activeLetter) activeLetter.textContent = "Space";
+  } else {
+    if (activeItem.exists && activeItem.image_url) {
+      if (largePreview) {
+        largePreview.src = activeItem.image_url;
+        largePreview.alt = `Active sign: ${activeItem.letter}`;
+        largePreview.style.display = "block";
+      }
+      if (fallback) fallback.style.display = "none";
+    } else {
+      if (largePreview) largePreview.style.display = "none";
+      if (fallback) {
+        fallback.textContent = activeItem.letter;
+        fallback.style.display = "block";
+      }
+    }
+    if (activeLetter) activeLetter.textContent = `Letter ${activeItem.letter}`;
+  }
+}
+
+function toggleFilmstripPlay() {
+  if (filmstripPlayInterval) {
+    stopFilmstripPlayback();
+  } else {
+    startFilmstripPlayback();
+  }
+}
+
+function startFilmstripPlayback() {
+  if (filmstripQueue.length === 0) return;
+
+  const playPauseLabel = document.getElementById("play-pause-label");
+  const playPauseIcon = document.getElementById("play-pause-icon");
+
+  if (playPauseLabel) playPauseLabel.textContent = "Pause";
+  if (playPauseIcon) {
+    playPauseIcon.innerHTML = `<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>`;
+  }
+
+  filmstripPlayInterval = setInterval(() => {
+    let nextIndex = filmstripIndex + 1;
+    if (nextIndex >= filmstripQueue.length) {
+      nextIndex = 0; // Wrap around loop
+    }
+    highlightFilmstripFrame(nextIndex);
+  }, filmstripPlaybackSpeed * 1000);
+}
+
+function stopFilmstripPlayback() {
+  if (filmstripPlayInterval) {
+    clearInterval(filmstripPlayInterval);
+    filmstripPlayInterval = null;
+  }
+
+  const playPauseLabel = document.getElementById("play-pause-label");
+  const playPauseIcon = document.getElementById("play-pause-icon");
+
+  if (playPauseLabel) playPauseLabel.textContent = "Play";
+  if (playPauseIcon) {
+    playPauseIcon.innerHTML = `<path d="M8 5v14l11-7z" />`;
+  }
+}
+
+function updateFilmstripSpeed(val) {
+  filmstripPlaybackSpeed = parseFloat(val);
+  const speedVal = document.getElementById("speed-val");
+  if (speedVal) speedVal.textContent = filmstripPlaybackSpeed.toFixed(1);
+
+  if (filmstripPlayInterval) {
+    stopFilmstripPlayback();
+    startFilmstripPlayback();
+  }
+}
+
+function initSpeechRecognition() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const micBtn = document.getElementById("btn-mic-input");
+
+  if (!SpeechRecognition) {
+    console.log("[SignAI] Web Speech recognition is not supported in this browser environment.");
+    if (micBtn) micBtn.style.display = "none";
+    return;
+  }
+
+  if (micBtn) micBtn.style.display = "flex";
+
+  recognition = new SpeechRecognition();
+  recognition.continuous = false;
+  recognition.lang = "en-US";
+  recognition.interimResults = false;
+
+  recognition.onstart = () => {
+    isListening = true;
+    micBtn.classList.add("recording");
+    micBtn.title = "Listening... Click to stop";
+    showToast("🎙️ Speech Recognition active...");
+  };
+
+  recognition.onend = () => {
+    isListening = false;
+    micBtn.classList.remove("recording");
+    micBtn.title = "Voice input [Speech Recognition]";
+  };
+
+  recognition.onerror = (e) => {
+    console.error("[SpeechRecognition Error]:", e.error);
+    showToast(`❌ Speech Recognition error: ${e.error}`);
+    isListening = false;
+    micBtn.classList.remove("recording");
+  };
+
+  recognition.onresult = (event) => {
+    const transcript = event.results[0][0].transcript;
+    const input = document.getElementById("reverse-text-input");
+    if (input) {
+      input.value = transcript;
+      translateTextToSign();
+    }
+  };
+}
+
+function toggleMicInput() {
+  if (!recognition) return;
+
+  if (isListening) {
+    recognition.stop();
+  } else {
+    recognition.start();
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// QUICK PHRASES POPULATION
+// ─────────────────────────────────────────────────────────────
+function initQuickPhrases() {
+  const container = document.getElementById("quick-phrases-row");
+  if (!container) return;
+
+  const phrases = [
+    { label: "🆘 Help", text: "I need help" },
+    { label: "🩺 Doctor", text: "Call a doctor" },
+    { label: "🙏 Thank You", text: "Thank you" },
+    { label: "👍 Yes", text: "Yes" },
+    { label: "👎 No", text: "No" },
+    { label: "⏳ Wait", text: "Please wait" }
+  ];
+
+  container.innerHTML = "";
+  phrases.forEach(phrase => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn-phrase";
+    btn.textContent = phrase.label;
+    btn.title = `Speak: "${phrase.text}"`;
+    btn.onclick = () => speakText(phrase.text);
+    container.appendChild(btn);
+  });
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -439,5 +727,7 @@ document.addEventListener("keydown", (e) => {
 window.addEventListener("DOMContentLoaded", () => {
   pollStatus();
   if (elVideoOverlay) elVideoOverlay.classList.add("visible");
-  console.log("[SignAI] App ready. High-contrast accessible interface loaded.");
+  initSpeechRecognition();
+  initQuickPhrases();
+  console.log("[SignAI] App ready. Upgrade functional interface loaded.");
 });
