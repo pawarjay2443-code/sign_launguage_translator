@@ -14,8 +14,14 @@
 let pollInterval     = null;   // setInterval handle for status polling
 let lastLetter       = "";     // Tracks last confirmed letter to detect changes
 let lastWord         = "";     // Tracks last word to detect changes
+let lastWordSign     = "";     // Tracks last word sign to detect changes
 let failedPollsCount = 0;     // Tracks consecutive failed polls to detect offline server
 let lastError        = "";     // Tracks last error to show toast only once
+let conversationPollInterval = null; // setInterval handle for transcript polling
+let convLastTranscriptLen = 0; // Tracks length of chat transcript to detect updates
+let convListening = false;     // Tracks if conversation mic is active
+let convRecognition = null;    // Conversation speech recognition instance
+let activeEmergencyKeyword = null; // Current active emergency warning word
 
 // ─────────────────────────────────────────────────────────────
 // DOM ELEMENT REFERENCES
@@ -32,6 +38,31 @@ const elBtnStop      = document.getElementById("btn-stop");
 const elRadialCircle = document.getElementById("radial-circle");
 const elErrorBanner  = document.getElementById("error-banner");
 const elErrorText    = document.getElementById("error-text");
+
+// Emergency Warning DOM References
+const elEmergencyBanner = document.getElementById("emergency-banner");
+const elEmergencyAlertText = document.getElementById("emergency-alert-text");
+const elEmergencyFirstAidList = document.getElementById("emergency-first-aid-list");
+const elEmergencyDisclaimer = document.getElementById("emergency-disclaimer");
+
+// Toggles & Mode container elements
+const elBtnAppSolo = document.getElementById("btn-app-solo");
+const elBtnAppConv = document.getElementById("btn-app-conversation");
+const elBtnRecSpell = document.getElementById("btn-rec-spell");
+const elBtnRecWord = document.getElementById("btn-rec-word");
+
+const elSoloInfoPanel = document.getElementById("solo-info-panel");
+const elConvPanel = document.getElementById("conversation-panel");
+const elReverseTranslationCard = document.getElementById("reverse-translation-card");
+const elSignerOutputCard = document.getElementById("signer-output-card");
+
+// Word sign UI elements
+const elRadialProgress = document.getElementById("radial-progress");
+const elWordSignDisplay = document.getElementById("word-sign-display");
+const elWordSignChar = document.getElementById("word-sign-char");
+const elWordConfidenceBar = document.getElementById("word-confidence-bar-indicator");
+const elWordConfidencePct = document.getElementById("word-confidence-pct");
+const elGestureCardHeading = document.getElementById("gesture-card-heading");
 
 // ─────────────────────────────────────────────────────────────
 // POLLING — Fetch status from Flask every 500ms
@@ -73,14 +104,33 @@ async function pollStatus() {
     failedPollsCount = 0; // Reset failure counter on successful connection
 
     updateCameraStatus(data.camera_running, data.error);
-    updateLetterDisplay(data.current_gesture, data.gesture_progress, data.confirmation_frames);
+    
+    // Check mode and update displays
+    if (data.recognition_mode === "word") {
+      updateWordSignDisplay(data.current_word_sign, data.word_confidence);
+    } else {
+      updateLetterDisplay(data.current_gesture, data.gesture_progress, data.confirmation_frames);
+    }
+    
     updateWordDisplay(data.current_word, data.sentence);
     updateFps(data.fps);
+
+    // Sync state mode toggles
+    updateModeToggles(data.recognition_mode, data.app_mode);
 
     // Detect when a new letter was just confirmed and show a toast
     if (data.last_added_letter && data.last_added_letter !== lastLetter) {
       showToast(`✓ "${data.last_added_letter}" added`);
       lastLetter = data.last_added_letter;
+    }
+
+    // Detect when a new word sign was just confirmed and show a toast
+    if (data.last_added_word_sign && data.last_added_word_sign !== lastWordSign) {
+      showToast(`✓ "${data.last_added_word_sign}" added`);
+      lastWordSign = data.last_added_word_sign;
+      if (data.app_mode === "conversation") {
+        pollConversationTranscript(); // Update immediately
+      }
     }
 
     // Handle displaying error toast when it changes
@@ -89,6 +139,37 @@ async function pollStatus() {
       lastError = data.error;
     } else if (!data.error) {
       lastError = "";
+    }
+
+    // ── Handle Emergency Warning Banner & TTS ──
+    if (data.emergency) {
+      if (elEmergencyBanner) {
+        if (elEmergencyAlertText) elEmergencyAlertText.textContent = data.emergency.alert;
+        if (elEmergencyDisclaimer) elEmergencyDisclaimer.textContent = "*Disclaimer: " + data.emergency_disclaimer;
+        
+        // Populate first-aid bullet list
+        if (elEmergencyFirstAidList) {
+          elEmergencyFirstAidList.innerHTML = "";
+          data.emergency.first_aid.forEach(step => {
+            const li = document.createElement("li");
+            li.textContent = step;
+            elEmergencyFirstAidList.appendChild(li);
+          });
+        }
+        
+        elEmergencyBanner.style.display = "block";
+      }
+      
+      // Interrupt and play TTS if this is a new emergency keyword
+      if (data.emergency.keyword !== activeEmergencyKeyword) {
+        activeEmergencyKeyword = data.emergency.keyword;
+        showToast("🚨 Emergency Triggered!");
+        speakText(data.emergency.alert);
+      }
+    } else {
+      // Hide emergency banner and reset state
+      if (elEmergencyBanner) elEmergencyBanner.style.display = "none";
+      activeEmergencyKeyword = null;
     }
 
   } catch (err) {
@@ -194,9 +275,22 @@ function updateWordDisplay(word, sentence) {
   if (fullText) {
     elSentenceText.textContent = fullText;
     elSentenceText.classList.add("has-content");
+
+    // Also update signer output card on the left in conversation mode
+    const elSignerOutputText = document.getElementById("signer-output-text");
+    if (elSignerOutputText) {
+      elSignerOutputText.textContent = fullText;
+      elSignerOutputText.classList.add("has-content");
+    }
   } else {
     elSentenceText.textContent = "Your sentence will appear here...";
     elSentenceText.classList.remove("has-content");
+
+    const elSignerOutputText = document.getElementById("signer-output-text");
+    if (elSignerOutputText) {
+      elSignerOutputText.textContent = "Sign using your webcam to build sentences...";
+      elSignerOutputText.classList.remove("has-content");
+    }
   }
 }
 
@@ -699,6 +793,360 @@ function initQuickPhrases() {
 }
 
 // ─────────────────────────────────────────────────────────────
+// MODE CONTROLLER FUNCTIONS
+// ─────────────────────────────────────────────────────────────
+
+async function changeAppMode(mode) {
+  try {
+    const res = await fetch("/set_app_mode", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: mode })
+    });
+    const data = await res.json();
+    
+    if (data.status === "success") {
+      updateAppModeUI(mode);
+      showToast(`🚀 Switch to ${mode === 'solo' ? 'Solo Practice' : 'Conversation Mode'}`);
+      
+      // If entering conversation mode, default to whole-word sign recognition
+      if (mode === "conversation") {
+        changeRecMode("word");
+      }
+    }
+  } catch (err) {
+    console.error("[changeAppMode] Error:", err);
+    showToast("❌ Failed to change app mode");
+  }
+}
+
+async function changeRecMode(mode) {
+  try {
+    const res = await fetch("/set_mode", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: mode })
+    });
+    const data = await res.json();
+    
+    if (data.status === "success") {
+      updateRecModeUI(mode);
+      showToast(`⚡ Recognition mode: ${mode === 'word' ? 'Word Signs' : 'Fingerspelling'}`);
+    }
+  } catch (err) {
+    console.error("[changeRecMode] Error:", err);
+    showToast("❌ Failed to change recognition mode");
+  }
+}
+
+function updateModeToggles(recMode, appMode) {
+  // Sync Recognition Mode button classes
+  if (recMode === "word") {
+    elBtnRecSpell.classList.remove("active");
+    elBtnRecWord.classList.add("active");
+    elBtnRecSpell.setAttribute("aria-checked", "false");
+    elBtnRecWord.setAttribute("aria-checked", "true");
+    
+    elRadialProgress.style.display = "none";
+    elWordSignDisplay.style.display = "flex";
+    if (elGestureCardHeading) elGestureCardHeading.textContent = "Detected Word Sign";
+  } else {
+    elBtnRecSpell.classList.add("active");
+    elBtnRecWord.classList.remove("active");
+    elBtnRecSpell.setAttribute("aria-checked", "true");
+    elBtnRecWord.setAttribute("aria-checked", "false");
+    
+    elRadialProgress.style.display = "flex";
+    elWordSignDisplay.style.display = "none";
+    if (elGestureCardHeading) elGestureCardHeading.textContent = "Current Gesture";
+  }
+
+  // Sync App Mode button classes
+  if (appMode === "conversation") {
+    elBtnAppSolo.classList.remove("active");
+    elBtnAppConv.classList.add("active");
+    elBtnAppSolo.setAttribute("aria-checked", "false");
+    elBtnAppConv.setAttribute("aria-checked", "true");
+    
+    updateAppModeUI("conversation");
+  } else {
+    elBtnAppSolo.classList.add("active");
+    elBtnAppConv.classList.remove("active");
+    elBtnAppSolo.setAttribute("aria-checked", "true");
+    elBtnAppConv.setAttribute("aria-checked", "false");
+    
+    updateAppModeUI("solo");
+  }
+}
+
+function updateAppModeUI(mode) {
+  const mainLayout = document.getElementById("translation-app");
+  
+  if (mode === "conversation") {
+    mainLayout.classList.add("conversation-layout-active");
+    
+    elSoloInfoPanel.style.display = "none";
+    elReverseTranslationCard.style.display = "none";
+    elConvPanel.style.display = "flex";
+    
+    const elSignerOutputCard = document.getElementById("signer-output-card");
+    if (elSignerOutputCard) elSignerOutputCard.style.display = "block";
+    
+    // Check first-use explainer tooltip
+    const dismissed = localStorage.getItem("dismissedConvTooltip");
+    if (!dismissed) {
+      document.getElementById("conv-explainer-tooltip").style.display = "block";
+    }
+    
+    // Start polling transcript if not already
+    if (!conversationPollInterval) {
+      conversationPollInterval = setInterval(pollConversationTranscript, 1000);
+      pollConversationTranscript();
+    }
+  } else {
+    mainLayout.classList.remove("conversation-layout-active");
+    
+    elSoloInfoPanel.style.display = "flex";
+    elReverseTranslationCard.style.display = "block";
+    elConvPanel.style.display = "none";
+    
+    const elSignerOutputCard = document.getElementById("signer-output-card");
+    if (elSignerOutputCard) elSignerOutputCard.style.display = "none";
+    
+    document.getElementById("conv-explainer-tooltip").style.display = "none";
+    
+    // Stop transcript polling
+    if (conversationPollInterval) {
+      clearInterval(conversationPollInterval);
+      conversationPollInterval = null;
+    }
+  }
+}
+
+function updateRecModeUI(mode) {
+  if (mode === "word") {
+    elRadialProgress.style.display = "none";
+    elWordSignDisplay.style.display = "flex";
+    if (elGestureCardHeading) elGestureCardHeading.textContent = "Detected Word Sign";
+  } else {
+    elRadialProgress.style.display = "flex";
+    elWordSignDisplay.style.display = "none";
+    if (elGestureCardHeading) elGestureCardHeading.textContent = "Current Gesture";
+  }
+}
+
+function dismissConvTooltip() {
+  localStorage.setItem("dismissedConvTooltip", "true");
+  document.getElementById("conv-explainer-tooltip").style.display = "none";
+}
+
+/**
+ * Update the word sign display and confidence bar indicator.
+ */
+function updateWordSignDisplay(wordSign, confidence) {
+  const displayVal = wordSign || "—";
+  
+  if (elWordSignChar.textContent !== displayVal) {
+    elWordSignChar.textContent = displayVal;
+    
+    // Animation trigger
+    elWordSignChar.classList.remove("letter-pop");
+    void elWordSignChar.offsetWidth;
+    elWordSignChar.classList.add("letter-pop");
+  }
+
+  const pct = Math.round(confidence * 100);
+  elWordConfidenceBar.style.width = `${pct}%`;
+  elWordConfidencePct.textContent = `${pct}% Confidence`;
+
+  if (wordSign) {
+    elProgressLbl.textContent = `Sign: "${wordSign}" — ${pct}% confidence`;
+  } else {
+    elProgressLbl.textContent = "Hold a sign to confirm";
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// CONVERSATION MODE HANDLERS
+// ─────────────────────────────────────────────────────────────
+
+async function sendConversationReply(event) {
+  if (event) event.preventDefault();
+  
+  const input = document.getElementById("conversation-reply-input");
+  const replyText = input.value.trim();
+  if (!replyText) return;
+
+  try {
+    const res = await fetch("/conversation/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: replyText, sender: "other" })
+    });
+    
+    if (res.ok) {
+      input.value = "";
+      
+      // Auto speak if checked
+      const speakEnable = document.getElementById("conv-tts-enable").checked;
+      if (speakEnable) {
+        speakText(replyText);
+      }
+      
+      pollConversationTranscript();
+    }
+  } catch (err) {
+    console.error("[sendConversationReply] Error:", err);
+    showToast("❌ Failed to send reply");
+  }
+}
+
+async function pollConversationTranscript() {
+  try {
+    const res = await fetch("/conversation/transcript");
+    const transcript = await res.json();
+    
+    if (transcript.length !== convLastTranscriptLen) {
+      convLastTranscriptLen = transcript.length;
+      renderConversationTranscript(transcript);
+    }
+  } catch (err) {
+    console.warn("[pollConversationTranscript] Error:", err);
+  }
+}
+
+function renderConversationTranscript(transcript) {
+  const windowEl = document.getElementById("chat-log-window");
+  if (!windowEl) return;
+  
+  windowEl.innerHTML = "";
+  
+  if (transcript.length === 0) {
+    windowEl.innerHTML = `
+      <div class="chat-placeholder" id="chat-placeholder">
+        <p>No messages yet. Sign with your camera or reply below to start the conversation.</p>
+      </div>
+    `;
+    return;
+  }
+  
+  transcript.forEach(msg => {
+    const bubble = document.createElement("div");
+    // Style differently based on sender
+    const isSigner = msg.sender === "signer";
+    bubble.className = `chat-bubble ${isSigner ? 'conv-signer' : 'conv-other'}`;
+    
+    const textP = document.createElement("p");
+    textP.className = "chat-msg-text";
+    textP.textContent = msg.text;
+    bubble.appendChild(textP);
+    
+    const tsSpan = document.createElement("span");
+    tsSpan.className = "chat-msg-time";
+    tsSpan.textContent = msg.timestamp;
+    bubble.appendChild(tsSpan);
+    
+    windowEl.appendChild(bubble);
+  });
+  
+  // Auto scroll to bottom
+  windowEl.scrollTop = windowEl.scrollHeight;
+}
+
+async function clearConversationTranscript() {
+  try {
+    const res = await fetch("/conversation/clear", { method: "POST" });
+    if (res.ok) {
+      showToast("🗑 Transcript cleared");
+      convLastTranscriptLen = 0;
+      renderConversationTranscript([]);
+    }
+  } catch (err) {
+    console.error("[clearConversationTranscript] Error:", err);
+  }
+}
+
+function initConvQuickReplies() {
+  const container = document.getElementById("conv-quick-replies");
+  if (!container) return;
+
+  const quickReplies = [
+    "Yes", "No", "Thank you", "OK", "Please wait", "Understood", "Hello"
+  ];
+
+  container.innerHTML = "";
+  quickReplies.forEach(text => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn-phrase";
+    btn.textContent = text;
+    btn.title = `Send response: "${text}"`;
+    btn.onclick = () => {
+      document.getElementById("conversation-reply-input").value = text;
+      sendConversationReply();
+    };
+    container.appendChild(btn);
+  });
+}
+
+function initConvSpeechRecognition() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const micBtn = document.getElementById("btn-conv-mic");
+
+  if (!SpeechRecognition) {
+    console.log("[SignAI] Web Speech recognition is not supported for Conversation Mode in this browser.");
+    if (micBtn) micBtn.style.display = "none";
+    return;
+  }
+
+  if (micBtn) micBtn.style.display = "flex";
+
+  convRecognition = new SpeechRecognition();
+  convRecognition.continuous = false;
+  convRecognition.lang = "en-US";
+  convRecognition.interimResults = false;
+
+  convRecognition.onstart = () => {
+    convListening = true;
+    micBtn.classList.add("recording");
+    micBtn.title = "Listening... Click to stop";
+    showToast("🎙️ Speech Recognition active...");
+  };
+
+  convRecognition.onend = () => {
+    convListening = false;
+    micBtn.classList.remove("recording");
+    micBtn.title = "Voice input [Speech Recognition]";
+  };
+
+  convRecognition.onerror = (e) => {
+    console.error("[ConvSpeechRecognition Error]:", e.error);
+    showToast(`❌ Speech Recognition error: ${e.error}`);
+    convListening = false;
+    micBtn.classList.remove("recording");
+  };
+
+  convRecognition.onresult = (event) => {
+    const transcript = event.results[0][0].transcript;
+    const input = document.getElementById("conversation-reply-input");
+    if (input) {
+      input.value = transcript;
+      sendConversationReply();
+    }
+  };
+}
+
+function toggleConvMic() {
+  if (!convRecognition) return;
+
+  if (convListening) {
+    convRecognition.stop();
+  } else {
+    convRecognition.start();
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
 // KEYBOARD SHORTCUTS
 // ─────────────────────────────────────────────────────────────
 document.addEventListener("keydown", (e) => {
@@ -729,5 +1177,7 @@ window.addEventListener("DOMContentLoaded", () => {
   if (elVideoOverlay) elVideoOverlay.classList.add("visible");
   initSpeechRecognition();
   initQuickPhrases();
+  initConvSpeechRecognition();
+  initConvQuickReplies();
   console.log("[SignAI] App ready. Upgrade functional interface loaded.");
 });

@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block title %}SignAI | Session Summary{% endblock %}
+
+{% block content %}
+<main class="main-layout" id="session-summary-page" style="display: block; max-width: 1000px; margin: 0 auto; padding: var(--space-xl) var(--space-md);">
+  
+  <!-- HERO SECTION -->
+  <section class="summary-hero" style="margin-bottom: var(--space-xl); text-align: center;">
+    <h1 style="font-family: 'Fraunces', Georgia, serif; font-size: 2.8rem; color: var(--accent); margin-bottom: var(--space-xs);">📊 Session Summary</h1>
+    <p style="color: var(--text-muted); font-size: 1.1rem; max-width: 600px; margin: 0 auto;">
+      Review your real-time translation session metrics, dynamic gesture history, and emergency response triggers.
+    </p>
+  </section>
+
+  <!-- METRICS GRID -->
+  <section class="summary-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--space-lg); margin-bottom: var(--space-xl);">
+    
+    <!-- CARD 1: TOTAL TRANSLATED -->
+    <div class="card summary-card" style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: var(--space-lg); text-align: center; background-color: var(--bg-mid); border: 2px solid var(--bg-light); border-radius: var(--radius-md);">
+      <h3 style="font-size: 1.1rem; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.05em; margin-bottom: var(--space-xs);">Sentences Translated</h3>
+      <div class="metric-value" style="font-size: 4rem; font-weight: 800; color: var(--accent); font-family: 'Fraunces', Georgia, serif; line-height: 1;">
+        {{ stats.total_translated }}
+      </div>
+      <p style="margin-top: var(--space-xs); font-size: 0.88rem; color: var(--text-secondary);">Sentences built and spoken/cleared</p>
+    </div>
+
+    <!-- CARD 2: EMERGENCIES TRIGGERED -->
+    <div class="card summary-card" style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: var(--space-lg); text-align: center; background-color: var(--bg-mid); border: 2px solid {% if stats.emergency_triggered > 0 %}var(--color-red){% else %}var(--bg-light){% endif %}; border-radius: var(--radius-md);">
+      <h3 style="font-size: 1.1rem; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.05em; margin-bottom: var(--space-xs);">Emergency Alerts</h3>
+      <div class="metric-value" style="font-size: 4rem; font-weight: 800; color: {% if stats.emergency_triggered > 0 %}var(--color-red){% else %}var(--text-muted){% endif %}; font-family: 'Fraunces', Georgia, serif; line-height: 1;">
+        {{ stats.emergency_triggered }}
+      </div>
+      <p style="margin-top: var(--space-xs); font-size: 0.88rem; color: var(--text-secondary);">Critical symptom warnings triggered</p>
+    </div>
+
+  </section>
+
+  <!-- TWO-COLUMN DETAIL VIEW -->
+  <section class="summary-details" style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-lg); align-items: start;">
+    
+    <!-- LEFT: RECENT DETECTIONS -->
+    <div class="card" style="padding: var(--space-lg); background-color: var(--bg-mid); border: 2px solid var(--bg-light); border-radius: var(--radius-md);">
+      <h3 class="card-heading" style="font-family: 'Fraunces', Georgia, serif; font-size: 1.4rem; color: var(--text-primary); border-bottom: 2px solid var(--bg-light); padding-bottom: var(--space-xs); margin-bottom: var(--space-md);">🤟 Recent Detections</h3>
+      {% if stats.recent_detections %}
+        <div style="display: flex; flex-wrap: wrap; gap: var(--space-xs);">
+          {% for item in stats.recent_detections %}
+            <span style="background-color: rgba(245, 158, 11, 0.15); color: var(--accent); border: 1px solid rgba(245, 158, 11, 0.3); padding: 6px 14px; border-radius: var(--radius-sm); font-family: monospace; font-size: 1.1rem; font-weight: 700;">
+              {{ item }}
+            </span>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p style="color: var(--text-muted); font-style: italic; font-size: 0.95rem;">No signs detected in this session yet.</p>
+      {% endif %}
+      
+      <div style="margin-top: var(--space-lg); border-top: 1px solid var(--bg-light); padding-top: var(--space-md);">
+        <h4 style="font-size: 0.95rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: var(--space-xs);">Bilateral Transcript</h4>
+        <p style="font-size: 0.88rem; color: var(--text-secondary); line-height: 1.4;">
+          If you are using two-way communication:
+        </p>
+        <a href="/dashboard" class="btn btn-secondary" style="margin-top: var(--space-xs); display: inline-flex; align-items: center; gap: 6px; font-size: 0.85rem; padding: 6px 12px; min-height: 36px; text-decoration: none;">
+          💬 Open Conversation Mode
+        </a>
+      </div>
+    </div>
+
+    <!-- RIGHT: HISTORY LOG -->
+    <div class="card" style="padding: var(--space-lg); background-color: var(--bg-mid); border: 2px solid var(--bg-light); border-radius: var(--radius-md);">
+      <h3 class="card-heading" style="font-family: 'Fraunces', Georgia, serif; font-size: 1.4rem; color: var(--text-primary); border-bottom: 2px solid var(--bg-light); padding-bottom: var(--space-xs); margin-bottom: var(--space-md);">📜 Translation History</h3>
+      {% if stats.sentences_history %}
+        <ul style="list-style: none; display: flex; flex-direction: column; gap: var(--space-sm); max-height: 300px; overflow-y: auto; padding-right: var(--space-xs);">
+          {% for sentence in stats.sentences_history %}
+            <li style="background-color: var(--bg-deep); border: 1px solid var(--bg-light); padding: var(--space-sm); border-radius: var(--radius-sm); line-height: 1.5; font-size: 0.95rem; border-left: 4px solid var(--accent);">
+              {{ sentence }}
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p style="color: var(--text-muted); font-style: italic; font-size: 0.95rem;">No sentences translated in this session yet.</p>
+      {% endif %}
+    </div>
+
+  </section>
+
+  <!-- QUICK LINK BUTTON -->
+  <div style="margin-top: var(--space-xl); text-align: center;">
+    <a href="/dashboard" class="btn btn-start" style="text-decoration: none; display: inline-flex; align-items: center; gap: 8px;">
+      ↩ Return to Translator App
+    </a>
+  </div>
+
+</main>
+{% endblock %}

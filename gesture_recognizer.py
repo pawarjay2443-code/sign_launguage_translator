@@ -8,7 +8,13 @@
 #   1. If a trained ML model (.pkl) exists → use ML prediction
 #   2. If no model exists → use RULE-BASED recognition
 #
-# RULE-BASED APPROACH (used by default):
+# WORD-LEVEL RECOGNITION (added for whole-word ISL signs):
+#   - Uses a separate 30-frame sequence buffer
+#   - Runs a trained RF (.pkl) or LSTM (.h5) classifier
+#   - Returns (word, confidence) instead of a single letter
+#   - Coexists with the letter recognizer via mode toggle
+#
+# RULE-BASED APPROACH (used by default for letters):
 #   - Checks which fingers are UP vs DOWN
 #   - Measures distances between fingertips
 #   - Maps finger patterns to ISL letters
@@ -23,6 +29,7 @@
 # ============================================================
 
 import os
+import json
 import math
 import numpy as np
 
@@ -38,14 +45,19 @@ except ImportError:
 
 class GestureRecognizer:
     """
-    ISL gesture recognizer with two modes:
+    ISL gesture recognizer with three modes:
     1. Rule-based (default) — works immediately, no training needed
-    2. ML-based (optional) — uses a trained .pkl classifier
+    2. ML-based (optional) — uses a trained .pkl classifier for letters
+    3. Word-level (optional) — uses a trained RF/LSTM for whole-word signs
     """
 
-    def __init__(self, model_path="model/isl_classifier.pkl", label_map_path="model/label_map.pkl"):
+    def __init__(self, model_path="model/isl_classifier.pkl",
+                 label_map_path="model/label_map.pkl",
+                 word_model_rf_path="model/word_classifier_rf.pkl",
+                 word_model_lstm_path="model/word_classifier_lstm.h5",
+                 word_label_map_path="model/word_label_map.json"):
         """
-        Initialize the recognizer and load the trained model if available.
+        Initialize the recognizer and load trained models if available.
         """
         self.model_path = model_path
         self.label_map_path = label_map_path
@@ -57,12 +69,22 @@ class GestureRecognizer:
         # Instantiate FingerCounter for numeric fallback / gestures
         self.finger_counter = FingerCounter()
 
-        # Sliding window buffer for ML-based recognition
+        # Sliding window buffer for ML-based letter recognition
         self.sequence_queue = []
         self.SEQUENCE_LENGTH = 30  # Must match training sequence length
 
-        # Try loading ML model (optional — rule-based works without it)
+        # ── Word-level recognition state ──
+        self.word_model = None
+        self.word_model_type = None           # "rf" or "lstm"
+        self.word_label_map = None
+        self.word_inverse_label_map = None
+        self.word_sequence_queue = []          # Dedicated 30-frame buffer for words
+        self.WORD_CONFIDENCE_THRESHOLD = 0.65  # Minimum confidence for word prediction
+
+        # Try loading ML models (optional — rule-based works without them)
         self.load_model()
+        self.load_word_model(word_model_rf_path, word_model_lstm_path,
+                            word_label_map_path)
 
         # Log which mode we're using
         if self.model is not None:
@@ -71,7 +93,7 @@ class GestureRecognizer:
             print("[OK] Using rule-based gesture recognition (15 ISL letters).")
 
     def load_model(self):
-        """Load the model and label mapping from disk (if they exist)."""
+        """Load the letter-level model and label mapping from disk (if they exist)."""
         if joblib is None:
             return
 
@@ -83,6 +105,55 @@ class GestureRecognizer:
                 print(f"[OK] Loaded trained ISL model: {self.model_path}")
             except Exception as e:
                 print(f"[ERROR] Failed to load trained ISL model: {e}")
+
+    def load_word_model(self, rf_path, lstm_path, label_map_path):
+        """
+        Load the word-level classifier (RF or LSTM) and its label map.
+        Prefers LSTM if both exist; falls back to RF.
+        """
+        # Load label map first (shared by both model types)
+        if not os.path.exists(label_map_path):
+            print("[INFO] No word-level label map found. Word recognition disabled.")
+            return
+
+        try:
+            with open(label_map_path, "r") as f:
+                self.word_label_map = json.load(f)
+            self.word_inverse_label_map = {v: k for k, v in self.word_label_map.items()}
+        except Exception as e:
+            print(f"[ERROR] Failed to load word label map: {e}")
+            return
+
+        # Try loading LSTM model first (better accuracy with enough data)
+        if os.path.exists(lstm_path):
+            try:
+                import tensorflow as tf
+                self.word_model = tf.keras.models.load_model(lstm_path)
+                self.word_model_type = "lstm"
+                self.WORD_CONFIDENCE_THRESHOLD = 0.70  # Higher bar for LSTM
+                print(f"[OK] Loaded LSTM word model: {lstm_path}")
+                return
+            except ImportError:
+                print("[INFO] TensorFlow not available, trying RF model...")
+            except Exception as e:
+                print(f"[WARNING] Failed to load LSTM word model: {e}")
+
+        # Fall back to Random Forest
+        if os.path.exists(rf_path) and joblib is not None:
+            try:
+                self.word_model = joblib.load(rf_path)
+                self.word_model_type = "rf"
+                self.WORD_CONFIDENCE_THRESHOLD = 0.65
+                print(f"[OK] Loaded RF word model: {rf_path}")
+                return
+            except Exception as e:
+                print(f"[ERROR] Failed to load RF word model: {e}")
+
+        # Neither model loaded
+        self.word_label_map = None
+        self.word_inverse_label_map = None
+        print("[INFO] No word-level model found. Word recognition disabled.")
+        print("       Train one with: python scripts/train_word_classifier.py")
 
     # ════════════════════════════════════════════════════════════
     # MAIN RECOGNITION METHOD
@@ -379,9 +450,98 @@ class GestureRecognizer:
         return None
 
     # ════════════════════════════════════════════════════════════
+    # WORD-LEVEL SEQUENCE RECOGNITION
+    # ════════════════════════════════════════════════════════════
+
+    def recognize_word_sequence(self, landmarks_flat):
+        """
+        Predict a whole-word ISL sign from a 30-frame sliding window
+        of hand landmark sequences.
+
+        Parameters:
+        - landmarks_flat : List of 126 floats (current frame's landmarks)
+
+        Returns:
+        - Tuple (predicted_word, confidence) or (None, 0.0)
+        """
+        if self.word_model is None:
+            return None, 0.0
+
+        # Append current frame to the word sequence buffer
+        self.word_sequence_queue.append(landmarks_flat)
+
+        # Maintain sliding window size
+        if len(self.word_sequence_queue) > self.SEQUENCE_LENGTH:
+            self.word_sequence_queue.pop(0)
+
+        # Wait until we have enough frames
+        if len(self.word_sequence_queue) < self.SEQUENCE_LENGTH:
+            return None, 0.0
+
+        # Build input array
+        sequence_array = np.array(self.word_sequence_queue, dtype=np.float32)
+
+        try:
+            if self.word_model_type == "lstm":
+                return self._predict_word_lstm(sequence_array)
+            elif self.word_model_type == "rf":
+                return self._predict_word_rf(sequence_array)
+        except Exception as e:
+            print(f"[ERROR] Word prediction failed: {e}")
+
+        return None, 0.0
+
+    def _predict_word_rf(self, sequence_array):
+        """
+        Run word prediction using the Random Forest model.
+        Flattens the (30, 126) sequence to (1, 3780) for prediction.
+        """
+        flat_input = sequence_array.flatten().reshape(1, -1)
+
+        try:
+            probs = self.word_model.predict_proba(flat_input)[0]
+            max_idx = np.argmax(probs)
+            confidence = float(probs[max_idx])
+
+            if confidence >= self.WORD_CONFIDENCE_THRESHOLD:
+                word = self.word_inverse_label_map.get(max_idx, None)
+                return word, confidence
+        except AttributeError:
+            # Model doesn't support predict_proba — use predict
+            pred = self.word_model.predict(flat_input)[0]
+            word = self.word_inverse_label_map.get(pred, None)
+            return word, 1.0 if word else 0.0
+
+        return None, 0.0
+
+    def _predict_word_lstm(self, sequence_array):
+        """
+        Run word prediction using the LSTM model.
+        Input shape: (1, 30, 126).
+        """
+        input_data = sequence_array.reshape(1, self.SEQUENCE_LENGTH, -1)
+        probs = self.word_model.predict(input_data, verbose=0)[0]
+        max_idx = int(np.argmax(probs))
+        confidence = float(probs[max_idx])
+
+        if confidence >= self.WORD_CONFIDENCE_THRESHOLD:
+            word = self.word_inverse_label_map.get(max_idx, None)
+            return word, confidence
+
+        return None, 0.0
+
+    def is_word_model_loaded(self):
+        """Returns True if a word-level model is loaded and ready."""
+        return self.word_model is not None
+
+    # ════════════════════════════════════════════════════════════
     # UTILITY
     # ════════════════════════════════════════════════════════════
 
     def reset_sequence(self):
-        """Clear the sequence buffer (e.g., when no hands are detected)."""
+        """Clear the letter-level sequence buffer (e.g., when no hands are detected)."""
         self.sequence_queue.clear()
+
+    def reset_word_sequence(self):
+        """Clear the word-level sequence buffer."""
+        self.word_sequence_queue.clear()

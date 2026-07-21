@@ -5,8 +5,48 @@
 {% block content %}
 <main class="main-layout" id="translation-app">
   
+  <!-- ─── TOP CONTROL BAR: App Mode and Recognition Mode Toggles ─── -->
+  <div class="dashboard-controls-bar">
+    <div class="control-toggle-group">
+      <span class="toggle-label">App Mode:</span>
+      <div class="toggle-buttons" role="radiogroup" aria-label="Application Mode selection">
+        <button id="btn-app-solo" class="toggle-btn active" onclick="changeAppMode('solo')" role="radio" aria-checked="true">
+          👤 Solo Practice
+        </button>
+        <button id="btn-app-conversation" class="toggle-btn" onclick="changeAppMode('conversation')" role="radio" aria-checked="false">
+          💬 Conversation Mode
+        </button>
+      </div>
+    </div>
+
+    <div class="control-toggle-group">
+      <span class="toggle-label">Recognition:</span>
+      <div class="toggle-buttons" role="radiogroup" aria-label="Recognition Mode selection">
+        <button id="btn-rec-spell" class="toggle-btn active" onclick="changeRecMode('fingerspell')" role="radio" aria-checked="true">
+          🔤 Fingerspelling
+        </button>
+        <button id="btn-rec-word" class="toggle-btn" onclick="changeRecMode('word')" role="radio" aria-checked="false">
+          🤟 Word Signs
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Conversation Mode Explainer/Tooltip -->
+  <div class="conversation-explainer-tooltip" id="conv-explainer-tooltip" style="display: none;">
+    <div class="tooltip-content">
+      <h4 class="tooltip-title">💡 Designed for Remote Video Calls</h4>
+      <p class="tooltip-desc">
+        Position this window side-by-side with your Zoom, Google Meet, or Teams video call. 
+        Use the camera feed to translate your gestures, and let the other participant respond using the 
+        chat input or quick responses.
+      </p>
+      <button class="btn btn-secondary btn-sm" onclick="dismissConvTooltip()">Got it, thanks!</button>
+    </div>
+  </div>
+
   <!-- ─── LEFT COLUMN: Camera Feed & System Status ─────────────── -->
-  <section class="camera-panel" aria-label="Live camera translation feed">
+  <section class="camera-panel" id="camera-panel" aria-label="Live camera translation feed">
     <div class="panel-header">
       <div class="panel-title-group">
         <h2 class="panel-title">📷 Live Feed</h2>
@@ -16,6 +56,24 @@
         </div>
       </div>
       <span class="fps-badge" id="fps-badge" aria-label="Frames per second metric">-- FPS</span>
+    </div>
+
+    <!-- EMERGENCY ALERT BANNER (Sourced from check_for_emergency) -->
+    <div class="emergency-banner" id="emergency-banner" role="alert" style="display: none; background: rgba(239, 68, 68, 0.15); border: 2px solid var(--color-red); border-radius: var(--radius-md); padding: var(--space-md); margin-bottom: var(--space-md);">
+      <div style="display: flex; gap: var(--space-md); align-items: start;">
+        <span class="emergency-icon" style="font-size: 2rem; animation: pulse 1.5s infinite; line-height: 1;" aria-hidden="true">🚨</span>
+        <div class="emergency-content" style="flex: 1; text-align: left;">
+          <strong class="emergency-title" id="emergency-title" style="font-size: 1.2rem; color: var(--color-red); font-family: 'Fraunces', Georgia, serif; display: block; margin-bottom: var(--space-xs);">Emergency Alert</strong>
+          <p class="emergency-msg" id="emergency-alert-text" style="font-weight: 700; color: var(--text-primary); margin-bottom: var(--space-sm);"></p>
+          <div style="margin-bottom: var(--space-sm);">
+            <strong style="font-size: 0.9rem; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: var(--space-xs);">Recommended First-Aid Actions:</strong>
+            <ul id="emergency-first-aid-list" style="list-style-type: disc; padding-left: 20px; color: var(--text-secondary); font-size: 0.95rem; display: flex; flex-direction: column; gap: 4px;">
+              <!-- Bullets added dynamically -->
+            </ul>
+          </div>
+          <span class="emergency-disclaimer" id="emergency-disclaimer" style="font-size: 0.8rem; color: var(--text-muted); font-style: italic; display: block; border-top: 1px solid rgba(239, 68, 68, 0.3); padding-top: var(--space-xs); margin-top: var(--space-xs);"></span>
+        </div>
+      </div>
     </div>
 
     <!-- SYSTEM/CAMERA ERROR BANNER (Sourced from /status error) -->
@@ -71,6 +129,23 @@
         Stop Camera
       </button>
     </div>
+
+    <!-- Signer Output Card (Shown on Left Column in Conversation Mode) -->
+    <div class="card signer-output-card" id="signer-output-card" style="display: none;">
+      <div class="card-header-row">
+        <h3 class="card-heading">🤟 Signer's Translated Sentence</h3>
+        <span class="builder-helper-tag primary">Real-time Sign Output</span>
+      </div>
+      <div class="sentence-display" id="signer-output-display">
+        <p class="sentence-text" id="signer-output-text">Sign using your webcam to build sentences...</p>
+      </div>
+      <div class="button-row tight">
+        <button class="btn btn-secondary btn-sm" onclick="doSpace()">Space</button>
+        <button class="btn btn-secondary btn-sm" onclick="doBackspace()">Backspace</button>
+        <button class="btn btn-clear btn-sm" onclick="clearText()">Clear</button>
+        <button class="btn btn-speak btn-sm" onclick="speakText()">Speak</button>
+      </div>
+    </div>
   </section>
 
   <!-- TEXT TO SIGN (REVERSE TRANSLATION) -->
@@ -120,13 +195,15 @@
     </div>
   </div>
 
-  <!-- ─── RIGHT COLUMN: Translation Display & Builders ───────── -->
-  <aside class="info-panel" aria-label="Translation panels">
+  <!-- ─── RIGHT COLUMN: Translation Display & Builders (Solo Mode) ─── -->
+  <aside class="info-panel" id="solo-info-panel" aria-label="Translation panels">
 
     <!-- DETECTED LETTER & RADIAL CONFIRMATION PROGRESS -->
-    <div class="card letter-card">
-      <h3 class="card-heading">Current Gesture</h3>
+    <div class="card letter-card" id="gesture-display-card">
+      <h3 class="card-heading" id="gesture-card-heading">Current Gesture</h3>
       <div class="letter-display-box">
+        
+        <!-- Fingerspelling mode display -->
         <div class="radial-progress-container" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="radial-progress">
           <svg class="radial-ring-svg" width="140" height="140">
             <!-- Background circle track -->
@@ -139,6 +216,16 @@
             <span id="letter-char" class="letter-text">—</span>
           </div>
         </div>
+
+        <!-- Word-recognition mode display (shown in word mode) -->
+        <div class="word-sign-display-container" id="word-sign-display" style="display: none;">
+          <span id="word-sign-char" class="word-sign-char-text">—</span>
+          <div class="word-confidence-bar-outer">
+            <div class="word-confidence-bar-inner" id="word-confidence-bar-indicator" style="width: 0%;"></div>
+          </div>
+          <p class="word-confidence-pct" id="word-confidence-pct">0% Confidence</p>
+        </div>
+
       </div>
       <p class="hold-hint" id="progress-label">Hold a sign to confirm</p>
     </div>
@@ -249,6 +336,55 @@
     </div>
 
   </aside>
+
+  <!-- ─── CONVERSATION PANEL: Chat history and reply panel (Conversation Mode) ─── -->
+  <section class="conversation-panel" id="conversation-panel" aria-label="Two-person Conversation Mode" style="display: none;">
+    <!-- Chat log window -->
+    <div class="card chat-transcript-card">
+      <div class="card-header-row">
+        <h3 class="card-heading">💬 Conversation Transcript</h3>
+        <button class="btn btn-clear btn-sm" onclick="clearConversationTranscript()" title="Clear conversation history">Clear Log</button>
+      </div>
+      <div class="chat-log-window" id="chat-log-window" role="log" aria-live="polite">
+        <!-- Transcript bubbles injected here by JS -->
+        <div class="chat-placeholder" id="chat-placeholder">
+          <p>No messages yet. Sign with your camera or reply below to start the conversation.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Reply / input panel for the other person -->
+    <div class="card other-person-reply-card">
+      <h3 class="card-heading">👤 Other Person Reply</h3>
+      
+      <form class="conversation-input-form" onsubmit="sendConversationReply(event)">
+        <div class="input-wrapper">
+          <input type="text" id="conversation-reply-input" placeholder="Type response here..." required aria-label="Response message" />
+          <button type="button" class="btn-mic" id="btn-conv-mic" onclick="toggleConvMic()" title="Voice input [Speech Recognition]" style="display: none;">
+            <svg class="mic-icon-svg" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+            </svg>
+          </button>
+        </div>
+        <button type="submit" class="btn btn-speak" id="btn-conv-send">Send &amp; Speak</button>
+      </form>
+
+      <!-- Quick replies for rapid communication -->
+      <div class="quick-phrases-group">
+        <span class="quick-phrases-label">Quick Responses:</span>
+        <div class="quick-phrases-row" id="conv-quick-replies">
+          <!-- Populated by JS: Yes, No, Thank you, OK, Please wait, Understood -->
+        </div>
+      </div>
+
+      <!-- TTS toggle for replies -->
+      <div class="tts-toggle-option" style="margin-top: var(--space-sm); display: flex; align-items: center; gap: 8px;">
+        <input type="checkbox" id="conv-tts-enable" checked style="width: 16px; height: 16px;" />
+        <label for="conv-tts-enable" style="font-size: 0.85rem; color: var(--text-secondary); cursor: pointer;">Auto-speak reply using Text-to-Speech</label>
+      </div>
+    </div>
+  </section>
+
 </main>
 
 <!-- Toast alert for accessibility transitions -->

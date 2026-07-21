@@ -11,7 +11,7 @@
       Breaking Communication Barriers with <span class="highlight">SignAI</span>
     </h1>
     <p class="hero-subtitle">
-      A final-year engineering evaluation project demonstrating high-performance real-time translation of Indian Sign Language (ISL) gestures to text and speech. Designed with accessibility-first principles.
+      A final-year engineering evaluation project demonstrating high-performance real-time translation of Indian Sign Language (ISL) gestures to text and speech. Designed with accessibility-first principles and featuring Whole-Word Sign Sequence recognition and split-screen Conversation Mode.
     </p>
     <div class="hero-cta">
       <a href="/dashboard" class="btn btn-start landing-cta-btn" role="button">
@@ -31,17 +31,17 @@
       <div class="card feature-card">
         <div class="feature-header">
           <span class="feature-num">01</span>
-          <h3 class="feature-title">Real-Time Joint Tracking</h3>
+          <h3 class="feature-title">Whole-Word Sign Sequence</h3>
         </div>
-        <p class="feature-desc">Leverages MediaPipe's high-fidelity hand landmarker API to track 21 coordinate joints on each hand dynamically in the browser environment.</p>
+        <p class="feature-desc">Goes beyond static poses to track hand landmark coordinate trajectories over a 30-frame sequence buffer, classifying dynamic whole-word ISL signs.</p>
       </div>
       
       <div class="card feature-card">
         <div class="feature-header">
           <span class="feature-num">02</span>
-          <h3 class="feature-title">High-Contrast Accessibility</h3>
+          <h3 class="feature-title">Conversation Mode</h3>
         </div>
-        <p class="feature-desc">Built using semantic HTML5 layouts, visible focus ring states, aria-live regions, and color contrast ratios exceeding WCAG AA criteria.</p>
+        <p class="feature-desc">Designed to run side-by-side with video calls (Zoom/Meet), featuring a two-way transcript and an accessible chat-reply panel for interlocutors.</p>
       </div>
       
       <div class="card feature-card">
@@ -49,7 +49,7 @@
           <span class="feature-num">03</span>
           <h3 class="feature-title">Tactile Audio Output</h3>
         </div>
-        <p class="feature-desc">Translates gestured letters into words and continuous sentences. Features high-fidelity client-side Web Speech TTS synthesis.</p>
+        <p class="feature-desc">Translates letters and whole-word signs into words and sentences. Features client-side Web Speech TTS synthesis.</p>
       </div>
 
       <div class="card feature-card">
@@ -67,12 +67,13 @@
     <div class="overview-inner">
       <h2 id="architecture-heading" class="section-title">System Architecture & Technical Rigor</h2>
       <p class="overview-text">
-        The system utilizes a modular backend and client architecture. A background thread processes camera frames using <strong>OpenCV</strong> and extracts <strong>MediaPipe</strong> landmarks. These landmarks are passed through a pipeline that checks geometrical joint configurations (angles, finger extension state, and relative coordinates) to map hand shapes to ISL representations.
+        The system utilizes a modular backend and client architecture. A background thread processes camera frames using <strong>OpenCV</strong> and extracts <strong>MediaPipe</strong> landmarks. Static hand configurations are evaluated using geometrical heuristics, while dynamic whole-word signs are parsed as temporal series using Random Forest or LSTM sequence classifiers.
       </p>
       <div class="tech-stack-row">
         <span class="tech-tag">Python &amp; Flask</span>
         <span class="tech-tag">OpenCV (cv2)</span>
         <span class="tech-tag">Google MediaPipe</span>
+        <span class="tech-tag">TensorFlow &amp; Scikit-Learn</span>
         <span class="tech-tag">Web Speech API</span>
         <span class="tech-tag">Semantic HTML5 &amp; CSS3</span>
       </div>
@@ -86,17 +87,17 @@
       <div class="card scope-card supported">
         <h3 class="scope-card-title">✓ In-Scope Gestures</h3>
         <ul class="scope-list">
+          <li><strong>20 Whole-Word Signs:</strong> Dynamic sequence tracking for Hello, Thank you, Please, Sorry, Yes, No, Help, Water, Food, Stop, Wait, Good, Bad, Name, Friend, Family, Doctor, Emergency, Love, and Understand.</li>
           <li><strong>15 ISL Letters:</strong> Static, one-handed signs for A, B, C, D, E, F, I, K, L, O, S, U, V, W, and Y.</li>
           <li><strong>Digits 0 to 9:</strong> Dynamic finger counting. 1–5 are single-handed, 6–9 are two-handed, and 0 is signed as two closed fists.</li>
-          <li><strong>Debounced Confirmation:</strong> Gestures must be held for 15 frames to trigger a confirmed character input.</li>
         </ul>
       </div>
       <div class="card scope-card out-of-scope">
         <h3 class="scope-card-title">✗ Out-of-Scope (Future Work)</h3>
         <ul class="scope-list">
-          <li><strong>Dynamic Letters:</strong> Letters requiring motion (e.g. J, Z) are not supported by the static rules engine.</li>
-          <li><strong>Two-Handed Alphabet:</strong> Complex alphabetic letters requiring two active hands (e.g. G, H, M, N, P, Q, R, T, X) are out of scope.</li>
-          <li><strong>Sentence Parsing:</strong> Natural language grammatical structuring is left as a post-processing step.</li>
+          <li><strong>Complex Sentence Grammars:</strong> Real-time mapping from ISL syntactic sequences to spoken English grammatical order.</li>
+          <li><strong>Multi-Signer Generalization:</strong> The default sequence models are optimized for single-user environment sessions.</li>
+          <li><strong>Arbitrary Vocabularies:</strong> Extensible dictionary mapping beyond the 20 pre-configured whole-word signs.</li>
         </ul>
       </div>
     </div>

@@ -12,8 +12,12 @@
 #   3. Each processed frame is JPEG-encoded and sent to the
 #      browser as an MJPEG stream (like a live TV signal).
 #   4. The browser polls /status every 500ms to get the current
-#      detected letter and word as JSON.
+#      detected letter/word and sentence as JSON.
 #   5. Buttons call /start, /stop, /clear, /speak via fetch().
+#
+# MODES:
+#   - Recognition: "fingerspell" (letter-by-letter) or "word" (whole-word signs)
+#   - App mode:    "solo" (practice/translate) or "conversation" (two-person)
 #
 # ============================================================
 
@@ -26,11 +30,14 @@ os.environ["MEDIAPIPE_DISABLE_GPU"] = "1"
 import cv2
 import time
 import threading
+from datetime import datetime
 from flask import Flask, Response, jsonify, render_template, request
 
 # ── Import your existing AI modules (no changes needed to them) ──
 from hand_detector import HandDetector
 from gesture_recognizer import GestureRecognizer
+from emergency_detector import check_for_emergency
+from emergency_data import DISCLAIMER_TEXT
 
 
 # ============================================================
@@ -62,7 +69,7 @@ class AppState:
         # Latest processed frame (as JPEG bytes) to send to browser
         self.latest_frame = None
 
-        # AI / gesture state
+        # AI / gesture state (letter-level fingerspelling)
         self.current_gesture = None         # The letter currently being held
         self.gesture_frames = 0             # How many consecutive frames it was seen
         self.CONFIRMATION_FRAMES = 15       # Frames needed to confirm a letter
@@ -79,6 +86,24 @@ class AppState:
         self.last_error = None              # Last camera or model error message
         self.cooldown_frames = 0            # Cooldown count for current gesture
 
+        # ── Word-level recognition state ──
+        self.recognition_mode = "fingerspell"   # "fingerspell" or "word"
+        self.current_word_sign = None            # Currently detected word sign
+        self.word_confidence = 0.0               # Confidence score for word detection
+        self.word_cooldown_frames = 0            # Cooldown after a word is confirmed
+        self.last_added_word_sign = ""           # Last confirmed word sign
+        self.word_model_available = False         # Whether a word model is loaded
+
+        # ── Conversation mode state ──
+        self.app_mode = "solo"                   # "solo" or "conversation"
+        self.conversation_transcript = []        # List of {sender, text, timestamp}
+
+        # ── Session stats & emergency tracking ──
+        self.translated_sentences = []           # List of completed sentences
+        self.recent_detections = []              # Rolling history of last 10 confirmed letters/words
+        self.emergency_alerts_triggered = 0      # Total emergency events triggered
+        self.active_emergency_keyword = None     # Current active emergency matched
+
 
 # Create one global state object
 state = AppState()
@@ -94,6 +119,8 @@ def camera_loop():
     It opens the webcam, runs the AI pipeline on each frame,
     and stores the latest JPEG frame in `state.latest_frame`
     so the /video_feed route can serve it.
+
+    Supports both fingerspelling and word-level recognition modes.
     """
     cap = None
     detector = None
@@ -124,6 +151,10 @@ def camera_loop():
         try:
             detector   = HandDetector(model_path="model/hand_landmarker.task", max_hands=2)
             recognizer = GestureRecognizer()
+
+            # Track whether word model is available
+            with state.lock:
+                state.word_model_available = recognizer.is_word_model_loaded()
         except Exception as e:
             print(f"[ERROR] Failed to load AI models: {e}")
             with state.lock:
@@ -138,6 +169,7 @@ def camera_loop():
             # Check if we should stop (set by /stop route)
             with state.lock:
                 should_run = state.camera_running
+                current_mode = state.recognition_mode
             if not should_run:
                 break
 
@@ -158,77 +190,163 @@ def camera_loop():
             # Enforce Face Detection Activation Trigger (from the GitHub project model)
             if detector.is_face_detected():
                 if detector.is_hand_detected():
-                    # Recognize the gesture using the sequence recognizer
-                    detected_letter = recognizer.recognize(landmarks_flat)
 
-                    # ── Gesture confirmation logic ───────────────────
-                    with state.lock:
-                        # Decrement cooldown counter if active
-                        if state.cooldown_frames > 0:
-                            state.cooldown_frames -= 1
+                    # ══════════════════════════════════════════════
+                    # MODE: WORD-LEVEL RECOGNITION
+                    # ══════════════════════════════════════════════
+                    if current_mode == "word":
+                        word_sign, confidence = recognizer.recognize_word_sequence(landmarks_flat)
 
-                        if detected_letter:
-                            # If they sign a different gesture, immediately clear the cooldown
-                            if detected_letter != state.last_added_letter:
+                        with state.lock:
+                            state.current_word_sign = word_sign
+                            state.word_confidence = confidence
+
+                            # Decrement word cooldown
+                            if state.word_cooldown_frames > 0:
+                                state.word_cooldown_frames -= 1
+
+                            if word_sign and confidence > 0:
+                                # New word detected — add to sentence
+                                if state.word_cooldown_frames == 0:
+                                    if word_sign != state.last_added_word_sign or state.word_cooldown_frames == 0:
+                                        # Add recognized word to the current word/sentence
+                                        if state.current_word:
+                                            state.current_word += " " + word_sign
+                                        else:
+                                            state.current_word = word_sign
+                                        state.last_added_word_sign = word_sign
+                                        state.word_cooldown_frames = 45  # Longer cooldown for words
+
+                                        # Record recent detection
+                                        state.recent_detections.append(word_sign)
+                                        if len(state.recent_detections) > 10:
+                                            state.recent_detections.pop(0)
+
+                                        # Auto-add to conversation transcript if in conversation mode
+                                        if state.app_mode == "conversation":
+                                            state.conversation_transcript.append({
+                                                "sender": "signer",
+                                                "text": word_sign,
+                                                "timestamp": datetime.now().strftime("%H:%M:%S")
+                                            })
+                            else:
+                                state.current_word_sign = None
+                                state.word_confidence = 0.0
+
+                        # Overlay for word mode
+                        display_word = word_sign if word_sign else "..."
+                        conf_pct = int(confidence * 100)
+                        cv2.putText(frame, f"WORD: {display_word}", (10, 50),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 1.4, (0, 200, 255), 3)
+                        cv2.putText(frame, f"Confidence: {conf_pct}%", (10, 90),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 200), 2)
+
+                        with state.lock:
+                            word_display = state.current_word
+                        cv2.putText(frame, f"Output: {word_display}", (10, 120),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+
+                    # ══════════════════════════════════════════════
+                    # MODE: FINGERSPELLING (existing behavior)
+                    # ══════════════════════════════════════════════
+                    else:
+                        # Recognize the gesture using the sequence recognizer
+                        detected_letter = recognizer.recognize(landmarks_flat)
+
+                        # ── Gesture confirmation logic ───────────────────
+                        with state.lock:
+                            # Decrement cooldown counter if active
+                            if state.cooldown_frames > 0:
+                                state.cooldown_frames -= 1
+
+                            if detected_letter:
+                                # If they sign a different gesture, immediately clear the cooldown
+                                if detected_letter != state.last_added_letter:
+                                    state.cooldown_frames = 0
+
+                                # If cooldown is active for the same letter, ignore it
+                                if state.cooldown_frames > 0 and detected_letter == state.last_added_letter:
+                                    state.gesture_frames = 0
+                                else:
+                                    if detected_letter == state.current_gesture:
+                                        state.gesture_frames += 1
+                                    else:
+                                        state.current_gesture = detected_letter
+                                        state.gesture_frames = 1
+
+                                    # Once held long enough, add to word
+                                    if state.gesture_frames == state.CONFIRMATION_FRAMES:
+                                        state.current_word    += detected_letter
+                                        state.last_added_letter = detected_letter
+                                        state.gesture_frames  = 0  # Reset so same letter can be typed again
+                                        state.cooldown_frames = 30  # Cooldown of 30 frames
+
+                                        # Record recent detection
+                                        state.recent_detections.append(detected_letter)
+                                        if len(state.recent_detections) > 10:
+                                            state.recent_detections.pop(0)
+
+                                        # Auto-add to conversation transcript if in conversation mode
+                                        if state.app_mode == "conversation":
+                                            state.conversation_transcript.append({
+                                                "sender": "signer",
+                                                "text": detected_letter,
+                                                "timestamp": datetime.now().strftime("%H:%M:%S")
+                                            })
+                            else:
+                                state.current_gesture = None
+                                state.gesture_frames  = 0
+                                # If no hand/gesture is visible, clear the cooldown to allow re-typing the same letter
                                 state.cooldown_frames = 0
 
-                            # If cooldown is active for the same letter, ignore it
-                            if state.cooldown_frames > 0 and detected_letter == state.last_added_letter:
-                                state.gesture_frames = 0
-                            else:
-                                if detected_letter == state.current_gesture:
-                                    state.gesture_frames += 1
-                                else:
-                                    state.current_gesture = detected_letter
-                                    state.gesture_frames = 1
+                        # ── Overlay: Detected letter and current word ────
+                        display_char = detected_letter if detected_letter else "?"
+                        cv2.putText(frame, f"LETTER: {display_char}", (10, 50),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 1.4, (0, 200, 255), 3)
 
-                                # Once held long enough, add to word
-                                if state.gesture_frames == state.CONFIRMATION_FRAMES:
-                                    state.current_word    += detected_letter
-                                    state.last_added_letter = detected_letter
-                                    state.gesture_frames  = 0  # Reset so same letter can be typed again
-                                    state.cooldown_frames = 30  # Cooldown of 30 frames
-                        else:
-                            state.current_gesture = None
-                            state.gesture_frames  = 0
-                            # If no hand/gesture is visible, clear the cooldown to allow re-typing the same letter
-                            state.cooldown_frames = 0
+                        with state.lock:
+                            word_display = state.current_word
+                        cv2.putText(frame, f"Word: {word_display}", (10, 100),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 200), 2)
 
-                    # ── Overlay: Detected letter and current word ────
-                    display_char = detected_letter if detected_letter else "?"
-                    cv2.putText(frame, f"LETTER: {display_char}", (10, 50),
-                                cv2.FONT_HERSHEY_SIMPLEX, 1.4, (0, 200, 255), 3)
-
-                    with state.lock:
-                        word_display = state.current_word
-                    cv2.putText(frame, f"Word: {word_display}", (10, 100),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 200), 2)
-
-                    # ── Progress bar: gesture confirmation progress ──
-                    with state.lock:
-                        progress = state.gesture_frames
-                    bar_width = int((progress / state.CONFIRMATION_FRAMES) * 200)
-                    cv2.rectangle(frame, (10, 115), (10 + bar_width, 125), (0, 255, 100), cv2.FILLED)
-                    cv2.rectangle(frame, (10, 115), (210, 125), (100, 100, 100), 1)
+                        # ── Progress bar: gesture confirmation progress ──
+                        with state.lock:
+                            progress = state.gesture_frames
+                        bar_width = int((progress / state.CONFIRMATION_FRAMES) * 200)
+                        cv2.rectangle(frame, (10, 115), (10 + bar_width, 125), (0, 255, 100), cv2.FILLED)
+                        cv2.rectangle(frame, (10, 115), (210, 125), (100, 100, 100), 1)
 
                 else:
-                    # No hand visible, reset the recognizer's sequence queue
+                    # No hand visible, reset the recognizer's sequence queues
                     recognizer.reset_sequence()
+                    recognizer.reset_word_sequence()
+                    with state.lock:
+                        state.current_word_sign = None
+                        state.word_confidence = 0.0
                     cv2.putText(frame, "Show your hand...", (10, 50),
                                 cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 100, 255), 2)
             else:
                 # Face not detected — system inactive
                 recognizer.reset_sequence()
+                recognizer.reset_word_sequence()
+                with state.lock:
+                    state.current_word_sign = None
+                    state.word_confidence = 0.0
                 cv2.putText(frame, "System Inactive", (10, 50),
                             cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 255), 3)
                 cv2.putText(frame, "Stand in front of camera", (10, 90),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 
+            # ── Mode indicator badge on frame ─────────────────────
+            mode_text = "WORD" if current_mode == "word" else "SPELL"
+            cv2.putText(frame, f"[{mode_text}]", (540, 30),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 0), 2)
+
             # ── FPS counter ──────────────────────────────────────
             curr_time = time.time()
             fps = int(1 / (curr_time - prev_time)) if (curr_time - prev_time) > 0 else 0
             prev_time = curr_time
-            cv2.putText(frame, f"FPS: {fps}", (560, 30),
+            cv2.putText(frame, f"FPS: {fps}", (560, 60),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
 
             with state.lock:
@@ -353,6 +471,17 @@ def status():
     }
     """
     with state.lock:
+        full_text = (state.sentence + " " + state.current_word).strip()
+        emergency_match = check_for_emergency(full_text)
+        
+        if emergency_match:
+            keyword = emergency_match["keyword"]
+            if keyword != state.active_emergency_keyword:
+                state.emergency_alerts_triggered += 1
+                state.active_emergency_keyword = keyword
+        else:
+            state.active_emergency_keyword = None
+
         return jsonify({
             "camera_running":     state.camera_running,
             "current_gesture":    state.current_gesture,
@@ -363,7 +492,99 @@ def status():
             "last_added_letter":  state.last_added_letter,
             "fps":                state.fps,
             "error":              state.last_error,
+            # Word-level recognition fields
+            "recognition_mode":   state.recognition_mode,
+            "current_word_sign":  state.current_word_sign,
+            "word_confidence":    state.word_confidence,
+            "last_added_word_sign": state.last_added_word_sign,
+            "word_model_available": state.word_model_available,
+            # App mode
+            "app_mode":           state.app_mode,
+            # Emergency fields
+            "emergency":          emergency_match,
+            "emergency_disclaimer": DISCLAIMER_TEXT
         })
+
+
+@app.route("/set_mode", methods=["POST"])
+def set_mode():
+    """
+    Toggle between fingerspell and word recognition modes.
+    """
+    data = request.get_json() or {}
+    mode = data.get("mode", "fingerspell")
+    if mode not in ["fingerspell", "word"]:
+        return jsonify({"status": "error", "message": "Invalid mode"}), 400
+    
+    with state.lock:
+        state.recognition_mode = mode
+        state.current_gesture = None
+        state.gesture_frames = 0
+        state.current_word_sign = None
+        state.word_confidence = 0.0
+        state.last_added_letter = ""
+        state.last_added_word_sign = ""
+        state.cooldown_frames = 0
+        state.word_cooldown_frames = 0
+        
+    return jsonify({"status": "success", "recognition_mode": mode})
+
+
+@app.route("/set_app_mode", methods=["POST"])
+def set_app_mode():
+    """
+    Toggle between solo and conversation modes.
+    """
+    data = request.get_json() or {}
+    mode = data.get("mode", "solo")
+    if mode not in ["solo", "conversation"]:
+        return jsonify({"status": "error", "message": "Invalid app mode"}), 400
+        
+    with state.lock:
+        state.app_mode = mode
+        
+    return jsonify({"status": "success", "app_mode": mode})
+
+
+@app.route("/conversation/send", methods=["POST"])
+def send_conversation_message():
+    """
+    Add a message to the conversation transcript (typically from the other person).
+    """
+    data = request.get_json() or {}
+    text = data.get("text", "").strip()
+    sender = data.get("sender", "other")
+    
+    if not text:
+        return jsonify({"status": "error", "message": "Empty text"}), 400
+        
+    with state.lock:
+        state.conversation_transcript.append({
+            "sender": sender,
+            "text": text,
+            "timestamp": datetime.now().strftime("%H:%M:%S")
+        })
+        
+    return jsonify({"status": "success"})
+
+
+@app.route("/conversation/transcript", methods=["GET"])
+def get_conversation_transcript():
+    """
+    Get the full running transcript.
+    """
+    with state.lock:
+        return jsonify(state.conversation_transcript)
+
+
+@app.route("/conversation/clear", methods=["POST"])
+def clear_conversation():
+    """
+    Clear the conversation transcript.
+    """
+    with state.lock:
+        state.conversation_transcript = []
+    return jsonify({"status": "success"})
 
 
 @app.route("/start", methods=["POST"])
@@ -416,6 +637,16 @@ def clear_text():
     Called when the user clicks 'Clear Text'.
     """
     with state.lock:
+        word     = state.current_word.strip()
+        sentence = state.sentence.strip()
+        full_text = (sentence + " " + word).strip()
+
+        if full_text:
+            if not state.translated_sentences or state.translated_sentences[-1] != full_text:
+                state.translated_sentences.append(full_text)
+                if len(state.translated_sentences) > 50:
+                    state.translated_sentences.pop(0)
+
         state.current_word    = ""
         state.sentence        = ""
         state.current_gesture = None
@@ -471,6 +702,12 @@ def speak():
 
     if not full_text:
         return jsonify({"status": "empty", "text": ""})
+
+    with state.lock:
+        if not state.translated_sentences or state.translated_sentences[-1] != full_text:
+            state.translated_sentences.append(full_text)
+            if len(state.translated_sentences) > 50:
+                state.translated_sentences.pop(0)
 
     print(f"[SPEAK] Sending to browser TTS: '{full_text}'")
     return jsonify({"status": "ok", "text": full_text})
@@ -644,6 +881,21 @@ def assistant():
             "answer": "I'm sorry, I encountered an issue processing your request. Please check your camera positioning and try again.",
             "image_url": None
         })
+
+
+@app.route("/session-summary")
+def session_summary():
+    """
+    Renders the Session Summary page with session stats.
+    """
+    with state.lock:
+        stats = {
+            "total_translated": len(state.translated_sentences),
+            "recent_detections": list(state.recent_detections),
+            "emergency_triggered": state.emergency_alerts_triggered,
+            "sentences_history": list(state.translated_sentences)[::-1]  # Reverse for newest first
+        }
+    return render_template("session_summary.html", stats=stats)
 
 
 @app.errorhandler(404)
