@@ -393,6 +393,9 @@ async function speakText(overrideText = null) {
   let text = "";
   if (overrideText) {
     text = overrideText;
+    try {
+      fetch(`/speak?text=${encodeURIComponent(overrideText)}`);
+    } catch (e) {}
   } else {
     try {
       const res  = await fetch("/speak");
@@ -970,11 +973,11 @@ function updateWordSignDisplay(wordSign, confidence) {
 // CONVERSATION MODE HANDLERS
 // ─────────────────────────────────────────────────────────────
 
-async function sendConversationReply(event) {
+async function sendConversationReply(event, customText = null) {
   if (event) event.preventDefault();
   
   const input = document.getElementById("conversation-reply-input");
-  const replyText = input.value.trim();
+  const replyText = customText ? customText.trim() : (input ? input.value.trim() : "");
   if (!replyText) return;
 
   try {
@@ -1158,6 +1161,7 @@ document.addEventListener("keydown", (e) => {
       doSpace();
       break;
     case "Backspace":
+      e.preventDefault();
       doBackspace();
       break;
     case "Enter":

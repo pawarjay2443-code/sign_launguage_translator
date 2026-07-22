@@ -596,7 +596,13 @@ def start_camera():
     with state.lock:
         if state.camera_running:
             return jsonify({"status": "already_running"})
+        prev_thread = state.camera_thread
 
+    # Ensure previous thread hardware cleanup has completed before launching new thread
+    if prev_thread and prev_thread.is_alive():
+        prev_thread.join(timeout=1.0)
+
+    with state.lock:
         state.camera_running = True
         state.latest_frame   = None  # Clear any old frame
         state.last_error     = None  # Reset error on start
@@ -652,6 +658,9 @@ def clear_text():
         state.current_gesture = None
         state.gesture_frames  = 0
         state.last_added_letter = ""
+        state.current_word_sign = None
+        state.last_added_word_sign = ""
+        state.word_cooldown_frames = 0
 
     return jsonify({"status": "cleared"})
 
@@ -693,12 +702,16 @@ def speak():
     The browser's Web Speech API will actually speak it —
     this avoids pyttsx3 threading issues inside Flask.
     """
-    with state.lock:
-        word     = state.current_word.strip()
-        sentence = state.sentence.strip()
+    req_data = request.get_json(silent=True) or {}
+    custom_text = req_data.get("text") or request.args.get("text")
 
-    # Build the full text: sentence + current word
-    full_text = (sentence + " " + word).strip()
+    with state.lock:
+        if custom_text:
+            full_text = custom_text.strip()
+        else:
+            word     = state.current_word.strip()
+            sentence = state.sentence.strip()
+            full_text = (sentence + " " + word).strip()
 
     if not full_text:
         return jsonify({"status": "empty", "text": ""})
@@ -881,6 +894,31 @@ def assistant():
             "answer": "I'm sorry, I encountered an issue processing your request. Please check your camera positioning and try again.",
             "image_url": None
         })
+
+
+@app.route("/reference")
+def reference():
+    """
+    Renders the ISL Reference Guide gallery page.
+    """
+    import string
+    alphabet = list(string.ascii_uppercase)
+    letters_data = []
+    
+    rule_supported = {"A", "B", "C", "D", "E", "F", "I", "K", "L", "O", "S", "U", "V", "W", "Y"}
+    
+    for char in alphabet:
+        image_filename = f"{char}.jpg"
+        image_path = os.path.join("static", "images", "reference", image_filename)
+        exists = os.path.exists(image_path)
+        letters_data.append({
+            "letter": char,
+            "image_url": f"/static/images/reference/{image_filename}" if exists else None,
+            "exists": exists,
+            "rule_supported": char in rule_supported
+        })
+        
+    return render_template("reference.html", letters=letters_data)
 
 
 @app.route("/session-summary")

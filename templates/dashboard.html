@@ -33,7 +33,7 @@
   </div>
 
   <!-- Conversation Mode Explainer/Tooltip -->
-  <div class="conversation-explainer-tooltip" id="conv-explainer-tooltip" style="display: none;">
+  <div class="conversation-explainer-tooltip" id="conv-explainer-tooltip">
     <div class="tooltip-content">
       <h4 class="tooltip-title">💡 Designed for Remote Video Calls</h4>
       <p class="tooltip-desc">
@@ -59,25 +59,25 @@
     </div>
 
     <!-- EMERGENCY ALERT BANNER (Sourced from check_for_emergency) -->
-    <div class="emergency-banner" id="emergency-banner" role="alert" style="display: none; background: rgba(239, 68, 68, 0.15); border: 2px solid var(--color-red); border-radius: var(--radius-md); padding: var(--space-md); margin-bottom: var(--space-md);">
-      <div style="display: flex; gap: var(--space-md); align-items: start;">
-        <span class="emergency-icon" style="font-size: 2rem; animation: pulse 1.5s infinite; line-height: 1;" aria-hidden="true">🚨</span>
-        <div class="emergency-content" style="flex: 1; text-align: left;">
-          <strong class="emergency-title" id="emergency-title" style="font-size: 1.2rem; color: var(--color-red); font-family: 'Fraunces', Georgia, serif; display: block; margin-bottom: var(--space-xs);">Emergency Alert</strong>
-          <p class="emergency-msg" id="emergency-alert-text" style="font-weight: 700; color: var(--text-primary); margin-bottom: var(--space-sm);"></p>
-          <div style="margin-bottom: var(--space-sm);">
-            <strong style="font-size: 0.9rem; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: var(--space-xs);">Recommended First-Aid Actions:</strong>
-            <ul id="emergency-first-aid-list" style="list-style-type: disc; padding-left: 20px; color: var(--text-secondary); font-size: 0.95rem; display: flex; flex-direction: column; gap: 4px;">
+    <div class="emergency-banner" id="emergency-banner" role="alert">
+      <div class="emergency-inner">
+        <span class="emergency-icon" aria-hidden="true">🚨</span>
+        <div class="emergency-content">
+          <strong class="emergency-title" id="emergency-title">Emergency Alert</strong>
+          <p class="emergency-msg" id="emergency-alert-text"></p>
+          <div class="emergency-actions-box">
+            <strong class="emergency-actions-heading">Recommended First-Aid Actions:</strong>
+            <ul id="emergency-first-aid-list" class="emergency-first-aid-list">
               <!-- Bullets added dynamically -->
             </ul>
           </div>
-          <span class="emergency-disclaimer" id="emergency-disclaimer" style="font-size: 0.8rem; color: var(--text-muted); font-style: italic; display: block; border-top: 1px solid rgba(239, 68, 68, 0.3); padding-top: var(--space-xs); margin-top: var(--space-xs);"></span>
+          <span class="emergency-disclaimer" id="emergency-disclaimer"></span>
         </div>
       </div>
     </div>
 
     <!-- SYSTEM/CAMERA ERROR BANNER (Sourced from /status error) -->
-    <div class="error-banner" id="error-banner" role="alert" style="display: none;">
+    <div class="error-banner" id="error-banner" role="alert">
       <span class="error-icon" aria-hidden="true">⚠️</span>
       <div class="error-content">
         <strong class="error-title">System Alert</strong>
@@ -131,7 +131,7 @@
     </div>
 
     <!-- Signer Output Card (Shown on Left Column in Conversation Mode) -->
-    <div class="card signer-output-card" id="signer-output-card" style="display: none;">
+    <div class="card signer-output-card" id="signer-output-card">
       <div class="card-header-row">
         <h3 class="card-heading">🤟 Signer's Translated Sentence</h3>
         <span class="builder-helper-tag primary">Real-time Sign Output</span>
@@ -155,7 +155,7 @@
     <form class="reverse-input-form" onsubmit="translateTextToSign(event)">
       <div class="input-wrapper">
         <input type="text" id="reverse-text-input" placeholder="Type text to convert to signs (e.g. HELLO)..." required aria-label="Text to translate into signs" />
-        <button type="button" class="btn-mic" id="btn-mic-input" onclick="toggleMicInput()" title="Voice input [Speech Recognition]" style="display: none;">
+        <button type="button" class="btn-mic" id="btn-mic-input" onclick="toggleMicInput()" title="Voice input [Speech Recognition]">
           <svg class="mic-icon-svg" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
           </svg>
@@ -165,10 +165,10 @@
     </form>
 
     <!-- Filmstrip view -->
-    <div class="filmstrip-wrapper" id="filmstrip-wrapper" style="display: none;">
+    <div class="filmstrip-wrapper" id="filmstrip-wrapper">
       <div class="filmstrip-preview-box">
         <div class="filmstrip-active-img-container">
-          <img id="filmstrip-large-preview" src="" alt="Active sign preview" style="display: none;" />
+          <img id="filmstrip-large-preview" src="" alt="Active sign preview" />
           <span id="filmstrip-preview-fallback">—</span>
         </div>
         <div class="filmstrip-active-letter" id="filmstrip-active-letter">—</div>
@@ -218,10 +218,10 @@
         </div>
 
         <!-- Word-recognition mode display (shown in word mode) -->
-        <div class="word-sign-display-container" id="word-sign-display" style="display: none;">
+        <div class="word-sign-display-container" id="word-sign-display">
           <span id="word-sign-char" class="word-sign-char-text">—</span>
           <div class="word-confidence-bar-outer">
-            <div class="word-confidence-bar-inner" id="word-confidence-bar-indicator" style="width: 0%;"></div>
+            <div class="word-confidence-bar-inner" id="word-confidence-bar-indicator"></div>
           </div>
           <p class="word-confidence-pct" id="word-confidence-pct">0% Confidence</p>
         </div>
@@ -315,7 +315,7 @@
         </svg>
       </button>
       
-      <div class="assistant-content" id="assistant-content" style="display: none;" aria-hidden="true">
+      <div class="assistant-content" id="assistant-content" aria-hidden="true">
         <p class="assistant-intro">Get guidance on supported ISL gestures, handshapes, or troubleshooting steps.</p>
         
         <div class="assistant-chat-log" id="assistant-chat-log" role="log" aria-live="polite">
@@ -338,7 +338,7 @@
   </aside>
 
   <!-- ─── CONVERSATION PANEL: Chat history and reply panel (Conversation Mode) ─── -->
-  <section class="conversation-panel" id="conversation-panel" aria-label="Two-person Conversation Mode" style="display: none;">
+  <section class="conversation-panel" id="conversation-panel" aria-label="Two-person Conversation Mode">
     <!-- Chat log window -->
     <div class="card chat-transcript-card">
       <div class="card-header-row">
@@ -360,7 +360,7 @@
       <form class="conversation-input-form" onsubmit="sendConversationReply(event)">
         <div class="input-wrapper">
           <input type="text" id="conversation-reply-input" placeholder="Type response here..." required aria-label="Response message" />
-          <button type="button" class="btn-mic" id="btn-conv-mic" onclick="toggleConvMic()" title="Voice input [Speech Recognition]" style="display: none;">
+          <button type="button" class="btn-mic" id="btn-conv-mic" onclick="toggleConvMic()" title="Voice input [Speech Recognition]">
             <svg class="mic-icon-svg" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
             </svg>
@@ -378,9 +378,9 @@
       </div>
 
       <!-- TTS toggle for replies -->
-      <div class="tts-toggle-option" style="margin-top: var(--space-sm); display: flex; align-items: center; gap: 8px;">
-        <input type="checkbox" id="conv-tts-enable" checked style="width: 16px; height: 16px;" />
-        <label for="conv-tts-enable" style="font-size: 0.85rem; color: var(--text-secondary); cursor: pointer;">Auto-speak reply using Text-to-Speech</label>
+      <div class="tts-toggle-option">
+        <input type="checkbox" id="conv-tts-enable" checked class="checkbox-input" />
+        <label for="conv-tts-enable" class="checkbox-label">Auto-speak reply using Text-to-Speech</label>
       </div>
     </div>
   </section>

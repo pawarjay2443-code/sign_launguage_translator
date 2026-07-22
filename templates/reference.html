@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}SignAI | ISL Reference Guide{% endblock %}
+
+{% block content %}
+<main class="main-layout reference-page-container">
+  
+  <!-- HERO HEADER -->
+  <section class="reference-hero">
+    <h1 class="reference-title">📖 ISL Reference Guide</h1>
+    <p class="reference-subtitle">
+      Visual dictionary for Indian Sign Language (ISL) hand shapes and gestures.
+      Cross-referenced against our AI translation engine.
+    </p>
+  </section>
+
+  <!-- GALLERY GRID -->
+  <section class="reference-grid-section">
+    <div class="reference-grid">
+      {% for item in letters %}
+        <div class="card reference-card {% if not item.exists %}placeholder-card{% endif %}">
+          
+          {% if item.exists and item.image_url %}
+            <div class="reference-img-wrapper">
+              <img src="{{ item.image_url }}" alt="ISL Sign for letter {{ item.letter }}" class="reference-card-img" loading="lazy" />
+              {% if item.rule_supported %}
+                <span class="status-badge supported" title="Supported by real-time translator">Active AI Sign</span>
+              {% else %}
+                <span class="status-badge full-scope" title="Standard ISL letter gesture">Reference Sign</span>
+              {% endif %}
+            </div>
+            <div class="reference-card-body">
+              <span class="reference-letter-badge">{{ item.letter }}</span>
+              <span class="reference-letter-label">Letter {{ item.letter }}</span>
+            </div>
+          {% else %}
+            <div class="reference-img-wrapper placeholder-wrapper">
+              <div class="placeholder-icon" aria-hidden="true">📷</div>
+              <span class="status-badge missing">Dataset Gap</span>
+            </div>
+            <div class="reference-card-body">
+              <span class="reference-letter-badge muted">{{ item.letter }}</span>
+              <span class="reference-letter-label muted">Letter {{ item.letter }}</span>
+              <p class="placeholder-text">Reference coming soon</p>
+            </div>
+          {% endif %}
+
+        </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <!-- BOTTOM BACK ACTION -->
+  <div class="reference-action-bar">
+    <a href="/dashboard" class="btn btn-start">
+      ↩ Launch Translator App
+    </a>
+  </div>
+
+</main>
+{% endblock %}
