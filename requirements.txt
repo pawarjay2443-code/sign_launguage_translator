@@ -1,32 +1,9 @@
-# ============================================================
-# PROJECT  : AI-Based Sign Language Translator
-# FILE     : requirements.txt
-# PURPOSE  : All Python packages needed to run this project.
-#
-# Install all at once:
-#   pip install -r requirements.txt
-# ============================================================
-
-# Core AI / Computer Vision
-opencv-python>=4.8.0,<5    # Webcam capture and frame processing
-mediapipe>=0.10.0          # Hand landmark detection AI model
-numpy>=1.24.0              # Numerical arrays (used by OpenCV)
-
-# Web Framework
-flask>=3.0.0               # Web server that serves the browser UI
-
-# Text-to-Speech (used only in desktop mode via main.py)
-pyttsx3>=2.90              # Offline TTS engine (not used by Flask web mode)
-
-# Machine Learning for Indian Sign Language (ISL)
-scikit-learn>=1.2.0        # For training the classifier model
-joblib>=1.2.0              # For saving and loading models
-tensorflow>=2.13.0         # Deep learning sequence models (LSTM)
-
-# Image Processing
-Pillow>=10.0.0             # Image resizing and normalization
-
-# AI Assistant
-anthropic>=0.18.0          # Anthropic API client
-
-
+fastapi==0.139.2
+uvicorn==0.51.0
+mediapipe==0.10.35
+opencv-python==5.0.0.93
+numpy==2.5.1
+python-dotenv==1.2.2
+pydantic==2.13.4
+pyttsx3==2.99
+emergentintegrations==0.2.0 --extra-index-url https://d33sy5i8bnduwe.cloudfront.net/simple/
