@@ -316,13 +316,35 @@ async def assistant(req: AssistantRequest):
 
 @app.get("/api/assistant/suggestions")
 async def assistant_suggestions():
-    return {"suggestions":[
-        "How do I sign the letter A?",
-        "Suggest 3 easy phrases I can practice.",
-        "My current word looks wrong — help me fix it.",
-        "What's the difference between U and V?",
-        "Explain how ISL differs from ASL.",
-    ]}
+    return {
+        "suggestions": [
+            "How do I sign letter A?",
+            "What is the difference between U and V?",
+            "Show practice phrases",
+            "How does emergency detection work?"
+        ]
+    }
+
+# -----------------------------------------------------------------------------
+# Static File & Single Page App (SPA) Serving for Production Deployment
+# -----------------------------------------------------------------------------
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+
+frontend_build = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend", "build"))
+if os.path.exists(frontend_build):
+    static_dir = os.path.join(frontend_build, "static")
+    if os.path.exists(static_dir):
+        app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        if full_path.startswith("api"):
+            raise HTTPException(status_code=404, detail="API route not found")
+        file_path = os.path.join(frontend_build, full_path)
+        if os.path.exists(file_path) and os.path.isfile(file_path):
+            return FileResponse(file_path)
+        return FileResponse(os.path.join(frontend_build, "index.html"))
 
 @app.get("/api/health")
 async def health():
